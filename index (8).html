@@ -1,0 +1,1652 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0, viewport-fit=cover"
+  >
+
+  <meta name="theme-color" content="#0f766e">
+
+  <meta
+    name="description"
+    content="صيدليتي Pro - نظام إدارة الصيدلية والمبيعات والمخزون"
+  >
+
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+
+  <title>صيدليتي Pro</title>
+
+  <link rel="manifest" href="./manifest.json">
+
+  <link rel="stylesheet" href="./style.css">
+</head>
+
+<body>
+
+  <!-- =========================================================
+       شاشة تسجيل الدخول
+  ========================================================== -->
+
+  <section id="loginScreen" class="login-screen">
+
+    <div class="login-card">
+
+      <div class="login-logo">
+        <div class="logo-icon">💊</div>
+        <h1>صيدليتي Pro</h1>
+        <p>نظام إدارة الصيدلية</p>
+      </div>
+
+      <form id="loginForm">
+
+        <div class="form-group">
+          <label for="loginEmail">البريد الإلكتروني</label>
+
+          <input
+            type="email"
+            id="loginEmail"
+            autocomplete="username"
+            placeholder="example@email.com"
+            required
+          >
+        </div>
+
+        <div class="form-group">
+          <label for="loginPassword">كلمة المرور</label>
+
+          <input
+            type="password"
+            id="loginPassword"
+            autocomplete="current-password"
+            placeholder="أدخل كلمة المرور"
+            required
+          >
+        </div>
+
+        <button
+          type="submit"
+          class="btn btn-primary btn-block"
+          id="loginButton"
+        >
+          تسجيل الدخول
+        </button>
+
+      </form>
+
+      <div id="loginMessage" class="login-message"></div>
+
+      <div class="login-footer">
+        <span>صيدليتي Pro</span>
+        <small>نظام إدارة صيدلية متكامل</small>
+      </div>
+
+    </div>
+
+  </section>
+
+
+  <!-- =========================================================
+       التطبيق الرئيسي
+  ========================================================== -->
+
+  <div id="app" class="app" hidden>
+
+    <!-- =======================================================
+         الشريط العلوي
+    ======================================================== -->
+
+    <header class="topbar">
+
+      <div class="topbar-right">
+
+        <button
+          type="button"
+          id="menuToggle"
+          class="icon-btn menu-toggle"
+          aria-label="فتح القائمة"
+        >
+          ☰
+        </button>
+
+        <div class="brand">
+
+          <div class="brand-icon">💊</div>
+
+          <div class="brand-text">
+            <strong id="pharmacyName">صيدليتي Pro</strong>
+            <span>نظام إدارة الصيدلية</span>
+          </div>
+
+        </div>
+
+      </div>
+
+
+      <div class="topbar-center">
+
+        <div
+          id="connectionStatus"
+          class="connection-status"
+        >
+          <span class="status-dot"></span>
+          <span class="status-text">جاري الاتصال...</span>
+        </div>
+
+      </div>
+
+
+      <div class="topbar-left">
+
+        <div class="user-box">
+
+          <div class="user-avatar" id="userAvatar">
+            👤
+          </div>
+
+          <div class="user-details">
+
+            <strong id="currentUserName">
+              المستخدم
+            </strong>
+
+            <span id="currentUserRole">
+              موظف
+            </span>
+
+          </div>
+
+        </div>
+
+        <button
+          type="button"
+          id="logoutBtn"
+          class="btn btn-danger btn-small"
+        >
+          خروج
+        </button>
+
+      </div>
+
+    </header>
+
+
+    <!-- =======================================================
+         القائمة الجانبية
+    ======================================================== -->
+
+    <aside id="sidebar" class="sidebar">
+
+      <div class="sidebar-header">
+        <span>القائمة الرئيسية</span>
+      </div>
+
+
+      <nav class="sidebar-nav">
+
+        <button
+          type="button"
+          class="nav-item active"
+          data-page="dashboard"
+        >
+          <span class="nav-icon">📊</span>
+          <span>الرئيسية</span>
+        </button>
+
+
+        <button
+          type="button"
+          class="nav-item"
+          data-page="pos"
+        >
+          <span class="nav-icon">🧾</span>
+          <span>نقطة البيع</span>
+        </button>
+
+
+        <button
+          type="button"
+          class="nav-item"
+          data-page="inventory"
+        >
+          <span class="nav-icon">💊</span>
+          <span>المخزون</span>
+        </button>
+
+
+        <button
+          type="button"
+          class="nav-item"
+          data-page="customers"
+        >
+          <span class="nav-icon">👥</span>
+          <span>العملاء</span>
+        </button>
+
+
+        <button
+          type="button"
+          class="nav-item"
+          data-page="suppliers"
+        >
+          <span class="nav-icon">🚚</span>
+          <span>الموردون</span>
+        </button>
+
+
+        <button
+          type="button"
+          class="nav-item"
+          data-page="purchases"
+        >
+          <span class="nav-icon">📦</span>
+          <span>المشتريات</span>
+        </button>
+
+
+        <button
+          type="button"
+          class="nav-item"
+          data-page="treasury"
+        >
+          <span class="nav-icon">💰</span>
+          <span>الخزينة</span>
+        </button>
+
+
+        <button
+          type="button"
+          class="nav-item"
+          data-page="reports"
+        >
+          <span class="nav-icon">📈</span>
+          <span>التقارير</span>
+        </button>
+
+
+        <button
+          type="button"
+          class="nav-item"
+          data-page="settings"
+        >
+          <span class="nav-icon">⚙️</span>
+          <span>الإعدادات</span>
+        </button>
+
+      </nav>
+
+
+      <div class="sidebar-footer">
+
+        <div class="system-version">
+          <span>الإصدار</span>
+          <strong>2.0</strong>
+        </div>
+
+      </div>
+
+    </aside>
+
+
+    <!-- =======================================================
+         المحتوى الرئيسي
+    ======================================================== -->
+
+    <main id="mainContent" class="main-content">
+
+
+      <!-- =====================================================
+           DASHBOARD
+      ====================================================== -->
+
+      <section
+        id="page-dashboard"
+        class="page active"
+      >
+
+        <div class="page-header">
+
+          <div>
+            <h2>لوحة التحكم</h2>
+            <p>نظرة عامة على الصيدلية اليوم</p>
+          </div>
+
+          <button
+            type="button"
+            id="refreshData"
+            class="btn btn-secondary"
+          >
+            🔄 تحديث البيانات
+          </button>
+
+        </div>
+
+
+        <div class="stats-grid">
+
+          <div class="stat-card">
+
+            <div class="stat-icon">💊</div>
+
+            <div class="stat-content">
+              <span>عدد الأدوية</span>
+              <strong id="statMedicines">0</strong>
+            </div>
+
+          </div>
+
+
+          <div class="stat-card">
+
+            <div class="stat-icon">💵</div>
+
+            <div class="stat-content">
+              <span>مبيعات اليوم</span>
+              <strong id="statSales">0</strong>
+            </div>
+
+          </div>
+
+
+          <div class="stat-card">
+
+            <div class="stat-icon">👥</div>
+
+            <div class="stat-content">
+              <span>ديون العملاء</span>
+              <strong id="statDebts">0</strong>
+            </div>
+
+          </div>
+
+
+          <div class="stat-card">
+
+            <div class="stat-icon">⚠️</div>
+
+            <div class="stat-content">
+              <span>مخزون منخفض</span>
+              <strong id="statLow">0</strong>
+            </div>
+
+          </div>
+
+
+          <div class="stat-card">
+
+            <div class="stat-icon">⛔</div>
+
+            <div class="stat-content">
+              <span>منتهية الصلاحية</span>
+              <strong id="statExpired">0</strong>
+            </div>
+
+          </div>
+
+
+          <div class="stat-card">
+
+            <div class="stat-icon">⏳</div>
+
+            <div class="stat-content">
+              <span>قريبة الانتهاء</span>
+              <strong id="statExpiring">0</strong>
+            </div>
+
+          </div>
+
+        </div>
+
+
+        <div class="dashboard-grid">
+
+          <div class="panel">
+
+            <div class="panel-header">
+              <h3>آخر المبيعات</h3>
+            </div>
+
+            <div
+              id="recentSales"
+              class="recent-list"
+            >
+              <div class="empty-state">
+                لا توجد مبيعات
+              </div>
+            </div>
+
+          </div>
+
+
+          <div class="panel">
+
+            <div class="panel-header">
+              <h3>التنبيهات</h3>
+            </div>
+
+            <div
+              id="alerts"
+              class="alerts-list"
+            >
+              <div class="empty-state">
+                لا توجد تنبيهات
+              </div>
+            </div>
+
+          </div>
+
+        </div>
+
+      </section>
+
+
+      <!-- =====================================================
+           POS
+      ====================================================== -->
+
+      <section
+        id="page-pos"
+        class="page"
+        hidden
+      >
+
+        <div class="page-header">
+
+          <div>
+            <h2>نقطة البيع</h2>
+            <p>إنشاء فاتورة بيع جديدة</p>
+          </div>
+
+        </div>
+
+
+        <div class="pos-layout">
+
+
+          <!-- البحث والمنتجات -->
+
+          <div class="panel pos-products">
+
+            <div class="panel-header">
+
+              <h3>اختيار الدواء</h3>
+
+              <span class="hint">
+                ابحث بالاسم أو الباركود
+              </span>
+
+            </div>
+
+
+            <div class="search-box">
+
+              <span class="search-icon">🔍</span>
+
+              <input
+                type="search"
+                id="posSearch"
+                placeholder="اسم الدواء أو الباركود..."
+                autocomplete="off"
+              >
+
+            </div>
+
+
+            <div
+              id="posResults"
+              class="pos-results"
+            >
+              <div class="empty-state">
+                ابدأ بالبحث عن دواء
+              </div>
+            </div>
+
+          </div>
+
+
+          <!-- السلة -->
+
+          <div class="panel pos-cart">
+
+            <div class="panel-header">
+
+              <h3>الفاتورة الحالية</h3>
+
+              <span
+                id="cartCount"
+                class="badge"
+              >
+                0
+              </span>
+
+            </div>
+
+
+            <div
+              id="cart"
+              class="cart-list"
+            >
+              <div class="empty-state">
+                لم تتم إضافة أدوية
+              </div>
+            </div>
+
+
+            <div class="cart-summary">
+
+              <div class="summary-row">
+                <span>الإجمالي</span>
+                <strong id="cartTotal">0</strong>
+              </div>
+
+
+              <div class="form-group">
+
+                <label for="discount">
+                  الخصم
+                </label>
+
+                <input
+                  type="number"
+                  id="discount"
+                  min="0"
+                  step="0.01"
+                  value="0"
+                  placeholder="0"
+                >
+
+              </div>
+
+
+              <div class="summary-row net-total">
+
+                <span>الصافي</span>
+
+                <strong id="cartNet">
+                  0
+                </strong>
+
+              </div>
+
+
+              <div class="form-group">
+
+                <label for="saleCustomer">
+                  العميل
+                </label>
+
+                <select id="saleCustomer">
+                  <option value="">
+                    عميل نقدي
+                  </option>
+                </select>
+
+              </div>
+
+
+              <div class="form-group">
+
+                <label for="paymentMethod">
+                  طريقة الدفع
+                </label>
+
+                <select id="paymentMethod">
+
+                  <option value="cash">
+                    نقدي
+                  </option>
+
+                  <option value="credit">
+                    آجل
+                  </option>
+
+                </select>
+
+              </div>
+
+
+              <button
+                type="button"
+                id="completeSale"
+                class="btn btn-primary btn-large btn-block"
+              >
+                إتمام البيع
+              </button>
+
+            </div>
+
+          </div>
+
+        </div>
+
+      </section>
+
+
+      <!-- =====================================================
+           INVENTORY
+      ====================================================== -->
+
+      <section
+        id="page-inventory"
+        class="page"
+        hidden
+      >
+
+        <div class="page-header">
+
+          <div>
+            <h2>المخزون</h2>
+            <p>إدارة الأدوية والكميات والأسعار والصلاحيات</p>
+          </div>
+
+          <button
+            type="button"
+            id="addMedicine"
+            class="btn btn-primary"
+          >
+            + إضافة دواء
+          </button>
+
+        </div>
+
+
+        <div class="panel">
+
+          <div class="toolbar">
+
+            <div class="search-box">
+
+              <span class="search-icon">🔍</span>
+
+              <input
+                type="search"
+                id="inventorySearch"
+                placeholder="البحث عن دواء..."
+              >
+
+            </div>
+
+
+            <select id="inventoryFilter">
+
+              <option value="all">
+                كل الأدوية
+              </option>
+
+              <option value="low">
+                مخزون منخفض
+              </option>
+
+              <option value="expired">
+                منتهية الصلاحية
+              </option>
+
+              <option value="expiring">
+                قريبة الانتهاء
+              </option>
+
+            </select>
+
+          </div>
+
+
+          <div class="table-container">
+
+            <table>
+
+              <thead>
+
+                <tr>
+                  <th>الدواء</th>
+                  <th>العلمي</th>
+                  <th>الباركود</th>
+                  <th>الدفعة</th>
+                  <th>الصلاحية</th>
+                  <th>الكمية</th>
+                  <th>سعر الشراء</th>
+                  <th>سعر البيع</th>
+                  <th>الحالة</th>
+                  <th>الإجراءات</th>
+                </tr>
+
+              </thead>
+
+              <tbody id="inventoryBody">
+              </tbody>
+
+            </table>
+
+          </div>
+
+        </div>
+
+      </section>
+
+
+      <!-- =====================================================
+           CUSTOMERS
+      ====================================================== -->
+
+      <section
+        id="page-customers"
+        class="page"
+        hidden
+      >
+
+        <div class="page-header">
+
+          <div>
+            <h2>العملاء</h2>
+            <p>إدارة العملاء والديون والمدفوعات</p>
+          </div>
+
+          <button
+            type="button"
+            id="addCustomer"
+            class="btn btn-primary"
+          >
+            + إضافة عميل
+          </button>
+
+        </div>
+
+
+        <div class="panel">
+
+          <div class="toolbar">
+
+            <div class="search-box">
+
+              <span class="search-icon">🔍</span>
+
+              <input
+                type="search"
+                id="customerSearch"
+                placeholder="البحث عن عميل..."
+              >
+
+            </div>
+
+          </div>
+
+
+          <div class="table-container">
+
+            <table>
+
+              <thead>
+
+                <tr>
+                  <th>الاسم</th>
+                  <th>الهاتف</th>
+                  <th>العنوان</th>
+                  <th>الرصيد</th>
+                  <th>آخر تحديث</th>
+                  <th>الإجراءات</th>
+                </tr>
+
+              </thead>
+
+              <tbody id="customersBody">
+              </tbody>
+
+            </table>
+
+          </div>
+
+        </div>
+
+      </section>
+
+
+      <!-- =====================================================
+           SUPPLIERS
+      ====================================================== -->
+
+      <section
+        id="page-suppliers"
+        class="page"
+        hidden
+      >
+
+        <div class="page-header">
+
+          <div>
+            <h2>الموردون</h2>
+            <p>إدارة الموردين والحسابات والمشتريات</p>
+          </div>
+
+          <button
+            type="button"
+            id="addSupplier"
+            class="btn btn-primary"
+          >
+            + إضافة مورد
+          </button>
+
+        </div>
+
+
+        <div class="panel">
+
+          <div class="toolbar">
+
+            <div class="search-box">
+
+              <span class="search-icon">🔍</span>
+
+              <input
+                type="search"
+                id="supplierSearch"
+                placeholder="البحث عن مورد..."
+              >
+
+            </div>
+
+          </div>
+
+
+          <div class="table-container">
+
+            <table>
+
+              <thead>
+
+                <tr>
+                  <th>اسم المورد</th>
+                  <th>الهاتف</th>
+                  <th>العنوان</th>
+                  <th>الرصيد</th>
+                  <th>آخر تحديث</th>
+                  <th>الإجراءات</th>
+                </tr>
+
+              </thead>
+
+              <tbody id="suppliersBody">
+              </tbody>
+
+            </table>
+
+          </div>
+
+        </div>
+
+      </section>
+
+
+      <!-- =====================================================
+           PURCHASES
+      ====================================================== -->
+
+      <section
+        id="page-purchases"
+        class="page"
+        hidden
+      >
+
+        <div class="page-header">
+
+          <div>
+            <h2>المشتريات</h2>
+            <p>إدارة فواتير شراء الأدوية من الموردين</p>
+          </div>
+
+          <button
+            type="button"
+            id="addPurchase"
+            class="btn btn-primary"
+          >
+            + فاتورة شراء
+          </button>
+
+        </div>
+
+
+        <div class="panel">
+
+          <div class="table-container">
+
+            <table>
+
+              <thead>
+
+                <tr>
+                  <th>رقم الفاتورة</th>
+                  <th>المورد</th>
+                  <th>التاريخ</th>
+                  <th>الإجمالي</th>
+                  <th>المدفوع</th>
+                  <th>المتبقي</th>
+                  <th>المستخدم</th>
+                </tr>
+
+              </thead>
+
+              <tbody id="purchasesBody">
+              </tbody>
+
+            </table>
+
+          </div>
+
+        </div>
+
+      </section>
+
+
+      <!-- =====================================================
+           TREASURY
+      ====================================================== -->
+
+      <section
+        id="page-treasury"
+        class="page"
+        hidden
+      >
+
+        <div class="page-header">
+
+          <div>
+            <h2>الخزينة</h2>
+            <p>متابعة الإيرادات والمصروفات والرصيد</p>
+          </div>
+
+          <button
+            type="button"
+            id="addTreasury"
+            class="btn btn-primary"
+          >
+            + حركة مالية
+          </button>
+
+        </div>
+
+
+        <div class="stats-grid treasury-stats">
+
+          <div class="stat-card">
+
+            <div class="stat-icon">
+              💵
+            </div>
+
+            <div class="stat-content">
+              <span>الإيرادات</span>
+              <strong id="incomeTotal">0</strong>
+            </div>
+
+          </div>
+
+
+          <div class="stat-card">
+
+            <div class="stat-icon">
+              💸
+            </div>
+
+            <div class="stat-content">
+              <span>المصروفات</span>
+              <strong id="expenseTotal">0</strong>
+            </div>
+
+          </div>
+
+
+          <div class="stat-card">
+
+            <div class="stat-icon">
+              💰
+            </div>
+
+            <div class="stat-content">
+              <span>الرصيد</span>
+              <strong id="balanceTotal">0</strong>
+            </div>
+
+          </div>
+
+        </div>
+
+
+        <div class="panel">
+
+          <div class="table-container">
+
+            <table>
+
+              <thead>
+
+                <tr>
+                  <th>التاريخ</th>
+                  <th>النوع</th>
+                  <th>البيان</th>
+                  <th>المبلغ</th>
+                  <th>المستخدم</th>
+                </tr>
+
+              </thead>
+
+              <tbody id="treasuryBody">
+              </tbody>
+
+            </table>
+
+          </div>
+
+        </div>
+
+      </section>
+
+
+      <!-- =====================================================
+           REPORTS
+      ====================================================== -->
+
+      <section
+        id="page-reports"
+        class="page"
+        hidden
+      >
+
+        <div class="page-header">
+
+          <div>
+            <h2>التقارير</h2>
+            <p>تقارير المبيعات والأرباح والمصروفات</p>
+          </div>
+
+          <button
+            type="button"
+            id="exportCSV"
+            class="btn btn-secondary"
+          >
+            📥 تصدير CSV
+          </button>
+
+        </div>
+
+
+        <div class="panel">
+
+          <div class="report-filters">
+
+            <div class="form-group">
+
+              <label for="reportFrom">
+                من تاريخ
+              </label>
+
+              <input
+                type="date"
+                id="reportFrom"
+              >
+
+            </div>
+
+
+            <div class="form-group">
+
+              <label for="reportTo">
+                إلى تاريخ
+              </label>
+
+              <input
+                type="date"
+                id="reportTo"
+              >
+
+            </div>
+
+
+            <button
+              type="button"
+              id="runReport"
+              class="btn btn-primary"
+            >
+              عرض التقرير
+            </button>
+
+          </div>
+
+        </div>
+
+
+        <div class="stats-grid report-stats">
+
+          <div class="stat-card">
+
+            <div class="stat-icon">
+              🧾
+            </div>
+
+            <div class="stat-content">
+              <span>المبيعات</span>
+              <strong id="reportSales">0</strong>
+            </div>
+
+          </div>
+
+
+          <div class="stat-card">
+
+            <div class="stat-icon">
+              📦
+            </div>
+
+            <div class="stat-content">
+              <span>تكلفة البضاعة</span>
+              <strong id="reportCOGS">0</strong>
+            </div>
+
+          </div>
+
+
+          <div class="stat-card">
+
+            <div class="stat-icon">
+              📈
+            </div>
+
+            <div class="stat-content">
+              <span>إجمالي الربح</span>
+              <strong id="reportGross">0</strong>
+            </div>
+
+          </div>
+
+
+          <div class="stat-card">
+
+            <div class="stat-icon">
+              💸
+            </div>
+
+            <div class="stat-content">
+              <span>المصروفات</span>
+              <strong id="reportExpenses">0</strong>
+            </div>
+
+          </div>
+
+
+          <div class="stat-card">
+
+            <div class="stat-icon">
+              💰
+            </div>
+
+            <div class="stat-content">
+              <span>صافي الربح</span>
+              <strong id="reportNet">0</strong>
+            </div>
+
+          </div>
+
+        </div>
+
+
+        <div class="panel">
+
+          <div class="panel-header">
+            <h3>الأدوية الأكثر مبيعًا</h3>
+          </div>
+
+          <div
+            id="bestSelling"
+            class="best-selling-list"
+          >
+            <div class="empty-state">
+              لا توجد بيانات
+            </div>
+          </div>
+
+        </div>
+
+      </section>
+
+
+      <!-- =====================================================
+           SETTINGS
+      ====================================================== -->
+
+      <section
+        id="page-settings"
+        class="page"
+        hidden
+      >
+
+        <div class="page-header">
+
+          <div>
+            <h2>الإعدادات</h2>
+            <p>إعدادات الصيدلية والحساب والنظام</p>
+          </div>
+
+        </div>
+
+
+        <!-- إعدادات الصيدلية -->
+
+        <div class="panel">
+
+          <div class="panel-header">
+            <h3>بيانات الصيدلية</h3>
+          </div>
+
+
+          <form id="settingsForm">
+
+            <div class="form-grid">
+
+              <div class="form-group">
+
+                <label for="settingName">
+                  اسم الصيدلية
+                </label>
+
+                <input
+                  type="text"
+                  id="settingName"
+                  placeholder="اسم الصيدلية"
+                >
+
+              </div>
+
+
+              <div class="form-group">
+
+                <label for="settingPhone">
+                  رقم الهاتف
+                </label>
+
+                <input
+                  type="tel"
+                  id="settingPhone"
+                  placeholder="رقم الهاتف"
+                >
+
+              </div>
+
+
+              <div class="form-group">
+
+                <label for="settingEmail">
+                  البريد الإلكتروني
+                </label>
+
+                <input
+                  type="email"
+                  id="settingEmail"
+                  placeholder="البريد الإلكتروني"
+                >
+
+              </div>
+
+
+              <div class="form-group">
+
+                <label for="settingCurrency">
+                  العملة
+                </label>
+
+                <input
+                  type="text"
+                  id="settingCurrency"
+                  placeholder="ريال"
+                >
+
+              </div>
+
+
+              <div class="form-group full">
+
+                <label for="settingAddress">
+                  العنوان
+                </label>
+
+                <textarea
+                  id="settingAddress"
+                  rows="3"
+                  placeholder="عنوان الصيدلية"
+                ></textarea>
+
+              </div>
+
+
+              <div class="form-group">
+
+                <label for="settingLowStock">
+                  حد المخزون المنخفض
+                </label>
+
+                <input
+                  type="number"
+                  id="settingLowStock"
+                  min="0"
+                  value="5"
+                >
+
+              </div>
+
+
+              <div class="form-group">
+
+                <label for="settingExpiryDays">
+                  تنبيه قبل انتهاء الصلاحية
+                </label>
+
+                <input
+                  type="number"
+                  id="settingExpiryDays"
+                  min="1"
+                  value="90"
+                >
+
+              </div>
+
+            </div>
+
+
+            <div class="form-actions">
+
+              <button
+                type="submit"
+                class="btn btn-primary"
+              >
+                حفظ الإعدادات
+              </button>
+
+            </div>
+
+          </form>
+
+        </div>
+
+
+        <!-- تغيير كلمة المرور -->
+
+        <div class="panel">
+
+          <div class="panel-header">
+            <h3>الأمان وكلمة المرور</h3>
+          </div>
+
+
+          <form id="passwordForm">
+
+            <div class="form-grid">
+
+              <div class="form-group">
+
+                <label for="currentPassword">
+                  كلمة المرور الحالية
+                </label>
+
+                <input
+                  type="password"
+                  id="currentPassword"
+                  autocomplete="current-password"
+                  placeholder="كلمة المرور الحالية"
+                >
+
+              </div>
+
+
+              <div class="form-group">
+
+                <label for="newPassword">
+                  كلمة المرور الجديدة
+                </label>
+
+                <input
+                  type="password"
+                  id="newPassword"
+                  autocomplete="new-password"
+                  placeholder="كلمة المرور الجديدة"
+                >
+
+              </div>
+
+
+              <div class="form-group">
+
+                <label for="confirmPassword">
+                  تأكيد كلمة المرور
+                </label>
+
+                <input
+                  type="password"
+                  id="confirmPassword"
+                  autocomplete="new-password"
+                  placeholder="أعد كتابة كلمة المرور"
+                >
+
+              </div>
+
+            </div>
+
+
+            <div class="form-actions">
+
+              <button
+                type="submit"
+                class="btn btn-primary"
+              >
+                تغيير كلمة المرور
+              </button>
+
+            </div>
+
+          </form>
+
+        </div>
+
+
+        <!-- النسخ الاحتياطي -->
+
+        <div class="panel">
+
+          <div class="panel-header">
+            <h3>النسخ الاحتياطي والاستعادة</h3>
+          </div>
+
+
+          <div class="backup-actions">
+
+            <button
+              type="button"
+              id="backupBtn"
+              class="btn btn-secondary"
+            >
+              💾 إنشاء نسخة احتياطية
+            </button>
+
+
+            <label
+              for="restoreFile"
+              class="btn btn-warning"
+            >
+              ♻️ استعادة نسخة
+            </label>
+
+            <input
+              type="file"
+              id="restoreFile"
+              accept=".json,application/json"
+              hidden
+            >
+
+          </div>
+
+          <p class="hint">
+            استخدم النسخ الاحتياطي بشكل دوري للحفاظ على بيانات الصيدلية.
+          </p>
+
+        </div>
+
+
+        <!-- المستخدمون -->
+
+        <div
+          id="usersManagementPanel"
+          class="panel"
+        >
+
+          <div class="panel-header">
+
+            <div>
+              <h3>إدارة المستخدمين</h3>
+              <p>إضافة الموظفين وتحديد صلاحياتهم</p>
+            </div>
+
+            <button
+              type="button"
+              id="addUser"
+              class="btn btn-primary"
+            >
+              + إضافة مستخدم
+            </button>
+
+          </div>
+
+
+          <div
+            id="usersList"
+            class="users-list"
+          >
+            <div class="empty-state">
+              سيتم تحميل المستخدمين...
+            </div>
+          </div>
+
+        </div>
+
+      </section>
+
+    </main>
+
+
+    <!-- =======================================================
+         MODAL
+    ======================================================== -->
+
+    <div
+      id="modal"
+      class="modal"
+      aria-hidden="true"
+    >
+
+      <div
+        class="modal-overlay"
+        id="modalOverlay"
+      ></div>
+
+
+      <div class="modal-dialog">
+
+        <div class="modal-header">
+
+          <h3 id="modalTitle">
+            نافذة
+          </h3>
+
+          <button
+            type="button"
+            id="closeModal"
+            class="modal-close"
+            aria-label="إغلاق"
+          >
+            ×
+          </button>
+
+        </div>
+
+
+        <div
+          id="modalBody"
+          class="modal-body"
+        ></div>
+
+      </div>
+
+    </div>
+
+
+    <!-- =======================================================
+         TOAST
+    ======================================================== -->
+
+    <div
+      id="toast"
+      class="toast"
+      role="status"
+      aria-live="polite"
+    >
+      <span id="toastIcon">✓</span>
+      <span id="toastMessage"></span>
+    </div>
+
+
+    <!-- =======================================================
+         شاشة التحميل
+    ======================================================== -->
+
+    <div
+      id="loadingOverlay"
+      class="loading-overlay"
+      hidden
+    >
+
+      <div class="loading-box">
+
+        <div class="loading-spinner"></div>
+
+        <strong id="loadingText">
+          جاري التحميل...
+        </strong>
+
+      </div>
+
+    </div>
+
+  </div>
+
+
+  <!-- =========================================================
+       Firebase / Application
+  ========================================================== -->
+
+  <script type="module" src="./app.js"></script>
+
+
+  <!-- =========================================================
+       Service Worker
+  ========================================================== -->
+
+  <script>
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", () => {
+
+        navigator.serviceWorker
+          .register("./service-worker.js")
+          .then(() => {
+            console.log("Service Worker registered");
+          })
+          .catch((error) => {
+            console.error(
+              "Service Worker registration failed:",
+              error
+            );
+          });
+
+      });
+    }
+  </script>
+
+</body>
+</html>

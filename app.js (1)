@@ -1,0 +1,9038 @@
+/* =========================================================
+   صيدليتي Pro
+   app.js
+   الإصدار 2.0
+   ========================================================= */
+
+import {
+  initializeApp,
+  getApps,
+  getApp
+} from "https://www.gstatic.com/firebasejs/12.19.0/firebase-app.js";
+
+import {
+  getAuth,
+  onAuthStateChanged,
+  signInWithEmailAndPassword,
+  signOut,
+  setPersistence,
+  browserLocalPersistence,
+  updatePassword,
+  reauthenticateWithCredential,
+  EmailAuthProvider,
+  createUserWithEmailAndPassword
+} from "https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js";
+
+import {
+  getFirestore,
+  collection,
+  doc,
+  getDoc,
+  getDocs,
+  addDoc,
+  setDoc,
+  updateDoc,
+  deleteDoc,
+  query,
+  orderBy,
+  limit,
+  where,
+  runTransaction,
+  serverTimestamp,
+  writeBatch
+} from "https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js";
+
+
+/* =========================================================
+   Firebase
+   ========================================================= */
+
+const firebaseConfig = {
+  apiKey: "ضع_API_KEY_هنا",
+
+  authDomain:
+    "project-6237016710936384077.firebaseapp.com",
+
+  projectId:
+    "project-6237016710936384077",
+
+  storageBucket:
+    "project-6237016710936384077.firebasestorage.app",
+
+  messagingSenderId:
+    "1015256058876",
+
+  appId:
+    "1:1015256058876:web:6d868f5d12f357eee40079",
+
+  measurementId:
+    "G-8NQ8E4YY84"
+};
+
+
+const app =
+  getApps().length
+    ? getApp()
+    : initializeApp(firebaseConfig);
+
+
+const auth = getAuth(app);
+const db = getFirestore(app);
+
+
+/* =========================================================
+   عناصر الواجهة
+   ========================================================= */
+
+const $ = (id) => document.getElementById(id);
+
+
+/* =========================================================
+   الحالة العامة
+   ========================================================= */
+
+const state = {
+
+  user: null,
+
+  role: "none",
+
+  profile: null,
+
+  settings: {
+
+    name: "صيدليتي Pro",
+
+    phone: "",
+
+    email: "",
+
+    address: "",
+
+    currency: "ريال",
+
+    lowStock: 5,
+
+    expiryDays: 90
+
+  },
+
+  medicines: [],
+
+  customers: [],
+
+  suppliers: [],
+
+  purchases: [],
+
+  sales: [],
+
+  treasury: [],
+
+  users: [],
+
+  cart: [],
+
+  currentPage: "dashboard",
+
+  loading: false
+
+};
+
+
+/* =========================================================
+   أدوات عامة
+   ========================================================= */
+
+function num(value) {
+
+  const n = Number(value);
+
+  return Number.isFinite(n)
+    ? n
+    : 0;
+}
+
+
+function money(value) {
+
+  return `${num(value).toFixed(2)} ${state.settings.currency || "ريال"}`;
+}
+
+
+function esc(value) {
+
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+
+function localToday() {
+
+  const d = new Date();
+
+  const y = d.getFullYear();
+
+  const m = String(d.getMonth() + 1)
+    .padStart(2, "0");
+
+  const day = String(d.getDate())
+    .padStart(2, "0");
+
+  return `${y}-${m}-${day}`;
+}
+
+
+function dateFrom(value) {
+
+  if (!value) {
+    return null;
+  }
+
+  if (
+    typeof value === "object" &&
+    typeof value.toDate === "function"
+  ) {
+    return value.toDate();
+  }
+
+  if (value instanceof Date) {
+    return value;
+  }
+
+  const d = new Date(value);
+
+  return Number.isNaN(d.getTime())
+    ? null
+    : d;
+}
+
+
+function formatDate(value) {
+
+  const d = dateFrom(value);
+
+  if (!d) {
+    return "-";
+  }
+
+  return new Intl.DateTimeFormat(
+    "ar",
+    {
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit"
+    }
+  ).format(d);
+}
+
+
+function formatDateTime(value) {
+
+  const d = dateFrom(value);
+
+  if (!d) {
+    return "-";
+  }
+
+  return new Intl.DateTimeFormat(
+    "ar",
+    {
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit"
+    }
+  ).format(d);
+}
+
+
+function dateOnly(value) {
+
+  if (!value) {
+    return "";
+  }
+
+  const d = dateFrom(value);
+
+  if (!d) {
+    return String(value);
+  }
+
+  const y = d.getFullYear();
+
+  const m = String(d.getMonth() + 1)
+    .padStart(2, "0");
+
+  const day = String(d.getDate())
+    .padStart(2, "0");
+
+  return `${y}-${m}-${day}`;
+}
+
+
+function daysUntil(value) {
+
+  if (!value) {
+    return Infinity;
+  }
+
+  const target = new Date(
+    `${dateOnly(value)}T23:59:59`
+  );
+
+  if (Number.isNaN(target.getTime())) {
+    return Infinity;
+  }
+
+  const now = new Date();
+
+  const diff =
+    target.getTime() - now.getTime();
+
+  return Math.ceil(
+    diff / 86400000
+  );
+}
+
+
+function toast(
+  message,
+  type = "success"
+) {
+
+  const el = $("toast");
+
+  if (!el) {
+    return;
+  }
+
+  const msg = $("toastMessage");
+
+  if (msg) {
+    msg.textContent = message;
+  }
+
+  el.className =
+    `toast show ${type}`;
+
+  setTimeout(() => {
+
+    el.classList.remove("show");
+
+  }, 3500);
+}
+
+
+function loading(
+  visible,
+  message = "جاري التحميل..."
+) {
+
+  state.loading = visible;
+
+  const el = $("loadingOverlay");
+
+  if (!el) {
+    return;
+  }
+
+  if ($("loadingText")) {
+    $("loadingText").textContent =
+      message;
+  }
+
+  el.hidden = !visible;
+}
+
+
+function todaySalesTotal() {
+
+  const today = localToday();
+
+  return state.sales
+
+    .filter(
+      sale =>
+        String(sale.saleDate || "") === today
+    )
+
+    .reduce(
+      (sum, sale) =>
+        sum + num(sale.total),
+      0
+    );
+}
+
+
+/* =========================================================
+   الصلاحيات
+   ========================================================= */
+
+function isAdmin() {
+
+  return state.role === "admin";
+}
+
+
+function isStore() {
+
+  return [
+    "admin",
+    "store"
+  ].includes(state.role);
+}
+
+
+function isCashier() {
+
+  return [
+    "admin",
+    "store",
+    "cashier"
+  ].includes(state.role);
+}
+
+
+function requireAdmin() {
+
+  if (!isAdmin()) {
+
+    toast(
+      "هذه العملية للمدير فقط",
+      "error"
+    );
+
+    return false;
+  }
+
+  return true;
+}
+
+
+function requireStore() {
+
+  if (!isStore()) {
+
+    toast(
+      "ليست لديك صلاحية لهذه العملية",
+      "error"
+    );
+
+    return false;
+  }
+
+  return true;
+}
+
+
+function requireCashier() {
+
+  if (!isCashier()) {
+
+    toast(
+      "ليست لديك صلاحية لهذه العملية",
+      "error"
+    );
+
+    return false;
+  }
+
+  return true;
+}
+
+
+/* =========================================================
+   الاتصال
+   ========================================================= */
+
+function updateConnectionStatus() {
+
+  const el =
+    $("connectionStatus");
+
+  if (!el) {
+    return;
+  }
+
+  const text =
+    el.querySelector(".status-text");
+
+  if (navigator.onLine) {
+
+    el.classList.remove("offline");
+
+    if (text) {
+      text.textContent =
+        "متصل بالإنترنت";
+    }
+
+  } else {
+
+    el.classList.add("offline");
+
+    if (text) {
+      text.textContent =
+        "غير متصل";
+    }
+
+  }
+}
+
+
+window.addEventListener(
+  "online",
+  updateConnectionStatus
+);
+
+window.addEventListener(
+  "offline",
+  updateConnectionStatus
+);
+
+
+/* =========================================================
+   المستخدم
+   ========================================================= */
+
+async function loadUserProfile() {
+
+  if (!state.user) {
+    return;
+  }
+
+  const ref =
+    doc(
+      db,
+      "users",
+      state.user.uid
+    );
+
+  const snap =
+    await getDoc(ref);
+
+  if (!snap.exists()) {
+
+    /*
+      توافق مع نظامك الحالي:
+      الحساب الرئيسي المحدد في Firestore Rules
+      يصبح مديرًا تلقائيًا.
+    */
+
+    const email =
+      String(
+        state.user.email || ""
+      ).toLowerCase();
+
+    const bootstrap =
+      email ===
+      "gdgdhsjajsjsj@gmail.com";
+
+    const profile = {
+
+      uid: state.user.uid,
+
+      email:
+        state.user.email || "",
+
+      name:
+        state.user.email || "المستخدم",
+
+      role:
+        bootstrap
+          ? "admin"
+          : "cashier",
+
+      createdAt:
+        serverTimestamp(),
+
+      updatedAt:
+        serverTimestamp()
+
+    };
+
+    await setDoc(
+      ref,
+      profile
+    );
+
+    state.profile = {
+      ...profile,
+      role: profile.role
+    };
+
+    state.role =
+      profile.role;
+
+  } else {
+
+    state.profile =
+      snap.data();
+
+    state.role =
+      state.profile.role || "cashier";
+  }
+
+
+  renderCurrentUser();
+
+  applyPermissions();
+}
+
+
+function renderCurrentUser() {
+
+  if (!state.user) {
+    return;
+  }
+
+  const email =
+    state.user.email || "";
+
+  const name =
+    state.profile?.name ||
+    email ||
+    "المستخدم";
+
+  if ($("currentUserName")) {
+    $("currentUserName").textContent =
+      name;
+  }
+
+  if ($("currentUserRole")) {
+
+    const roleNames = {
+
+      admin: "مدير النظام",
+
+      store: "مسؤول المخزون",
+
+      cashier: "كاشير"
+
+    };
+
+    $("currentUserRole").textContent =
+      roleNames[state.role] ||
+      "موظف";
+
+  }
+
+  if ($("userAvatar")) {
+
+    $("userAvatar").textContent =
+      state.role === "admin"
+        ? "👑"
+        : state.role === "store"
+          ? "📦"
+          : "👤";
+
+  }
+}
+
+
+function applyPermissions() {
+
+  const settingsBtn =
+    document.querySelector(
+      '[data-page="settings"]'
+    );
+
+  if (
+    settingsBtn &&
+    !isAdmin()
+  ) {
+
+    settingsBtn.style.display =
+      "none";
+
+  } else if (settingsBtn) {
+
+    settingsBtn.style.display =
+      "";
+
+  }
+
+  const usersPanel =
+    $("usersManagementPanel");
+
+  if (usersPanel) {
+
+    usersPanel.style.display =
+      isAdmin()
+        ? ""
+        : "none";
+
+  }
+}
+
+
+/* =========================================================
+   تسجيل الدخول
+   ========================================================= */
+
+async function login(email, password) {
+
+  loading(
+    true,
+    "جاري تسجيل الدخول..."
+  );
+
+  try {
+
+    await setPersistence(
+      auth,
+      browserLocalPersistence
+    );
+
+    await signInWithEmailAndPassword(
+      auth,
+      email,
+      password
+    );
+
+    toast(
+      "تم تسجيل الدخول بنجاح",
+      "success"
+    );
+
+  } catch (error) {
+
+    console.error(error);
+
+    let message =
+      "تعذر تسجيل الدخول";
+
+    if (
+      error.code ===
+      "auth/invalid-credential"
+    ) {
+
+      message =
+        "البريد الإلكتروني أو كلمة المرور غير صحيحة";
+
+    } else if (
+      error.code ===
+      "auth/user-not-found"
+    ) {
+
+      message =
+        "الحساب غير موجود";
+
+    } else if (
+      error.code ===
+      "auth/wrong-password"
+    ) {
+
+      message =
+        "كلمة المرور غير صحيحة";
+
+    } else if (
+      error.code ===
+      "auth/too-many-requests"
+    ) {
+
+      message =
+        "تمت محاولات كثيرة. حاول لاحقًا";
+
+    }
+
+    if ($("loginMessage")) {
+      $("loginMessage").textContent =
+        message;
+    }
+
+  } finally {
+
+    loading(false);
+
+  }
+}
+
+
+/* =========================================================
+   تسجيل الخروج
+   ========================================================= */
+
+async function logout() {
+
+  try {
+
+    await signOut(auth);
+
+  } catch (error) {
+
+    console.error(error);
+
+    toast(
+      "تعذر تسجيل الخروج",
+      "error"
+    );
+
+  }
+}
+
+
+/* =========================================================
+   تحميل Collection
+   ========================================================= */
+
+async function loadCollection(
+  name,
+  sortField = "createdAt"
+) {
+
+  try {
+
+    const snap =
+      await getDocs(
+        collection(db, name)
+      );
+
+    const items =
+      snap.docs.map(
+        item => ({
+          id: item.id,
+          ...item.data()
+        })
+      );
+
+    items.sort(
+      (a, b) => {
+
+        const av =
+          dateFrom(a[sortField])
+            ?.getTime() ??
+          String(a[sortField] ?? "");
+
+        const bv =
+          dateFrom(b[sortField])
+            ?.getTime() ??
+          String(b[sortField] ?? "");
+
+        if (
+          typeof av === "number" &&
+          typeof bv === "number"
+        ) {
+          return bv - av;
+        }
+
+        return String(bv)
+          .localeCompare(
+            String(av),
+            "ar"
+          );
+      }
+    );
+
+    return items;
+
+  } catch (error) {
+
+    console.error(
+      `Error loading ${name}`,
+      error
+    );
+
+    return [];
+  }
+}
+
+
+/* =========================================================
+   تحميل الإعدادات
+   ========================================================= */
+
+async function loadSettings() {
+
+  try {
+
+    const ref =
+      doc(
+        db,
+        "settings",
+        "general"
+      );
+
+    const snap =
+      await getDoc(ref);
+
+    if (snap.exists()) {
+
+      state.settings = {
+
+        ...state.settings,
+
+        ...snap.data()
+
+      };
+
+    }
+
+  } catch (error) {
+
+    console.error(error);
+
+  }
+
+  renderSettings();
+
+  if ($("pharmacyName")) {
+
+    $("pharmacyName").textContent =
+      state.settings.name ||
+      "صيدليتي Pro";
+
+  }
+}
+
+
+/* =========================================================
+   تحميل البيانات
+   ========================================================= */
+
+async function loadAll() {
+
+  if (!state.user) {
+    return;
+  }
+
+  loading(
+    true,
+    "جاري تحميل بيانات الصيدلية..."
+  );
+
+  try {
+
+    await loadSettings();
+
+    state.medicines =
+      await loadCollection(
+        "medicines",
+        "tradeName"
+      );
+
+    state.customers =
+      await loadCollection(
+        "customers",
+        "name"
+      );
+
+    state.suppliers =
+      await loadCollection(
+        "suppliers",
+        "name"
+      );
+
+    state.purchases =
+      await loadCollection(
+        "purchases",
+        "createdAt"
+      );
+
+    state.sales =
+      await loadCollection(
+        "sales",
+        "createdAt"
+      );
+
+    state.treasury =
+      await loadCollection(
+        "treasury",
+        "createdAt"
+      );
+
+    if (isAdmin()) {
+
+      state.users =
+        await loadCollection(
+          "users",
+          "createdAt"
+        );
+
+    }
+
+    renderAll();
+
+    updateConnectionStatus();
+
+  } catch (error) {
+
+    console.error(error);
+
+    toast(
+      "حدث خطأ أثناء تحميل البيانات",
+      "error"
+    );
+
+  } finally {
+
+    loading(false);
+
+  }
+}
+
+
+/* =========================================================
+   Audit Log
+   ========================================================= */
+
+async function audit(
+  action,
+  module,
+  details = {}
+) {
+
+  if (!state.user) {
+    return;
+  }
+
+  try {
+
+    await addDoc(
+      collection(
+        db,
+        "auditLogs"
+      ),
+      {
+
+        action,
+
+        module,
+
+        details,
+
+        userId:
+          state.user.uid,
+
+        userEmail:
+          state.user.email || "",
+
+        role:
+          state.role,
+
+        createdAt:
+          serverTimestamp()
+
+      }
+    );
+
+  } catch (error) {
+
+    console.warn(
+      "Audit log failed:",
+      error
+    );
+
+  }
+}
+
+
+/* =========================================================
+   التنقل
+   ========================================================= */
+
+function navigate(page) {
+
+  if (
+    page === "settings" &&
+    !isAdmin()
+  ) {
+
+    toast(
+      "الإعدادات متاحة للمدير فقط",
+      "error"
+    );
+
+    page = "dashboard";
+  }
+
+  state.currentPage =
+    page;
+
+
+  document
+    .querySelectorAll(".nav-item")
+    .forEach(
+      button => {
+
+        button.classList.toggle(
+          "active",
+          button.dataset.page === page
+        );
+
+      }
+    );
+
+
+  document
+    .querySelectorAll(".page")
+    .forEach(
+      section => {
+
+        const active =
+          section.id ===
+          `page-${page}`;
+
+        section.hidden =
+          !active;
+
+        section.classList.toggle(
+          "active",
+          active
+        );
+
+      }
+    );
+
+
+  if (
+    window.innerWidth <= 900
+  ) {
+
+    $("sidebar")
+      ?.classList
+      .remove("open");
+
+  }
+
+
+  if (page === "dashboard") {
+    renderDashboard();
+  }
+
+  if (page === "pos") {
+    renderPOS();
+  }
+
+  if (page === "inventory") {
+    renderInventory();
+  }
+
+  if (page === "customers") {
+    renderCustomers();
+  }
+
+  if (page === "suppliers") {
+    renderSuppliers();
+  }
+
+  if (page === "purchases") {
+    renderPurchases();
+  }
+
+  if (page === "treasury") {
+    renderTreasury();
+  }
+
+  if (page === "reports") {
+    renderReports();
+  }
+
+  if (page === "settings") {
+    renderSettings();
+    renderUsers();
+  }
+}
+
+
+/* =========================================================
+   Dashboard
+   ========================================================= */
+
+function renderDashboard() {
+
+  const medicines =
+    state.medicines;
+
+  const low =
+    medicines.filter(
+      medicine =>
+        num(medicine.quantity) <=
+        num(state.settings.lowStock)
+    );
+
+  const expired =
+    medicines.filter(
+      medicine =>
+        daysUntil(
+          medicine.expiryDate
+        ) < 0
+    );
+
+  const expiring =
+    medicines.filter(
+      medicine => {
+
+        const days =
+          daysUntil(
+            medicine.expiryDate
+          );
+
+        return (
+          days >= 0 &&
+          days <=
+          num(
+            state.settings.expiryDays
+          )
+        );
+
+      }
+    );
+
+
+  const debts =
+    state.customers.reduce(
+      (sum, customer) =>
+        sum +
+        Math.max(
+          0,
+          num(customer.balance)
+        ),
+      0
+    );
+
+
+  if ($("statMedicines")) {
+    $("statMedicines").textContent =
+      medicines.length;
+  }
+
+  if ($("statSales")) {
+    $("statSales").textContent =
+      money(todaySalesTotal());
+  }
+
+  if ($("statDebts")) {
+    $("statDebts").textContent =
+      money(debts);
+  }
+
+  if ($("statLow")) {
+    $("statLow").textContent =
+      low.length;
+  }
+
+  if ($("statExpired")) {
+    $("statExpired").textContent =
+      expired.length;
+  }
+
+  if ($("statExpiring")) {
+    $("statExpiring").textContent =
+      expiring.length;
+  }
+
+
+  renderRecentSales();
+
+  renderAlerts();
+}
+
+
+function renderRecentSales() {
+
+  const el =
+    $("recentSales");
+
+  if (!el) {
+    return;
+  }
+
+  const sales =
+    [...state.sales]
+      .sort(
+        (a, b) =>
+          (dateFrom(b.createdAt)?.getTime() || 0) -
+          (dateFrom(a.createdAt)?.getTime() || 0)
+      )
+      .slice(0, 8);
+
+
+  if (!sales.length) {
+
+    el.innerHTML =
+      `<div class="empty-state">
+        لا توجد مبيعات حتى الآن
+      </div>`;
+
+    return;
+  }
+
+
+  el.innerHTML =
+    sales.map(
+      sale => `
+
+        <div class="best-selling-item">
+
+          <div>
+            <strong>
+              فاتورة ${esc(
+                sale.invoiceNo || sale.id.slice(-6)
+              )}
+            </strong>
+
+            <div class="hint">
+              ${formatDateTime(sale.createdAt)}
+            </div>
+          </div>
+
+          <strong>
+            ${money(sale.total)}
+          </strong>
+
+        </div>
+
+      `
+    ).join("");
+}
+
+
+function renderAlerts() {
+
+  const el =
+    $("alerts");
+
+  if (!el) {
+    return;
+  }
+
+  const alerts = [];
+
+
+  state.medicines.forEach(
+    medicine => {
+
+      const quantity =
+        num(medicine.quantity);
+
+      if (
+        quantity <=
+        num(state.settings.lowStock)
+      ) {
+
+        alerts.push({
+
+          type: "low",
+
+          title:
+            `مخزون منخفض: ${medicine.tradeName}`,
+
+          description:
+            `الكمية الحالية: ${quantity}`
+
+        });
+
+      }
+
+
+      const days =
+        daysUntil(
+          medicine.expiryDate
+        );
+
+
+      if (days < 0) {
+
+        alerts.push({
+
+          type: "expired",
+
+          title:
+            `منتهي الصلاحية: ${medicine.tradeName}`,
+
+          description:
+            `تاريخ الانتهاء: ${formatDate(
+              medicine.expiryDate
+            )}`
+
+        });
+
+      } else if (
+        days <=
+        num(state.settings.expiryDays)
+      ) {
+
+        alerts.push({
+
+          type: "expiry",
+
+          title:
+            `قريب الانتهاء: ${medicine.tradeName}`,
+
+          description:
+            `متبقي ${days} يوم`
+
+        });
+
+      }
+
+    }
+  );
+
+
+  if (!alerts.length) {
+
+    el.innerHTML =
+      `<div class="empty-state">
+        لا توجد تنبيهات
+      </div>`;
+
+    return;
+  }
+
+
+  el.innerHTML =
+    alerts
+      .slice(0, 15)
+      .map(
+        alert => `
+
+          <div class="alert-item">
+
+            <div class="
+              alert-icon
+              ${alert.type === "expired" ? "danger" : ""}
+            ">
+              ${alert.type === "low" ? "⚠️" : "⏳"}
+            </div>
+
+            <div class="alert-content">
+
+              <div class="alert-title">
+                ${esc(alert.title)}
+              </div>
+
+              <div class="alert-description">
+                ${esc(alert.description)}
+              </div>
+
+            </div>
+
+          </div>
+
+        `
+      )
+      .join("");
+}
+
+
+/* =========================================================
+   Inventory
+   ========================================================= */
+
+function medicineStatus(
+  medicine
+) {
+
+  const quantity =
+    num(medicine.quantity);
+
+  const days =
+    daysUntil(
+      medicine.expiryDate
+    );
+
+
+  if (days < 0) {
+
+    return {
+      text: "منتهي",
+      className: "badge-danger"
+    };
+
+  }
+
+
+  if (
+    days <=
+    num(state.settings.expiryDays)
+  ) {
+
+    return {
+      text: "قريب الانتهاء",
+      className: "badge-warning"
+    };
+
+  }
+
+
+  if (
+    quantity <=
+    num(state.settings.lowStock)
+  ) {
+
+    return {
+      text: "مخزون منخفض",
+      className: "badge-warning"
+    };
+
+  }
+
+
+  return {
+    text: "جيد",
+    className: "badge-success"
+  };
+}
+
+
+function renderInventory() {
+
+  const body =
+    $("inventoryBody");
+
+  if (!body) {
+    return;
+  }
+
+  const search =
+    String(
+      $("inventorySearch")?.value || ""
+    )
+      .trim()
+      .toLowerCase();
+
+  const filter =
+    $("inventoryFilter")?.value ||
+    "all";
+
+
+  let items =
+    state.medicines.filter(
+      medicine => {
+
+        const text =
+          [
+            medicine.tradeName,
+            medicine.scientificName,
+            medicine.barcode,
+            medicine.batchNo
+          ]
+            .join(" ")
+            .toLowerCase();
+
+        return text.includes(search);
+      }
+    );
+
+
+  items =
+    items.filter(
+      medicine => {
+
+        const status =
+          medicineStatus(
+            medicine
+          );
+
+        if (filter === "low") {
+
+          return (
+            num(medicine.quantity) <=
+            num(state.settings.lowStock)
+          );
+
+        }
+
+        if (filter === "expired") {
+
+          return (
+            daysUntil(
+              medicine.expiryDate
+            ) < 0
+          );
+
+        }
+
+        if (filter === "expiring") {
+
+          const days =
+            daysUntil(
+              medicine.expiryDate
+            );
+
+          return (
+            days >= 0 &&
+            days <=
+            num(state.settings.expiryDays)
+          );
+
+        }
+
+        return true;
+      }
+    );
+
+
+  if (!items.length) {
+
+    body.innerHTML =
+      `<tr>
+        <td colspan="10">
+          <div class="empty-state">
+            لا توجد أدوية مطابقة
+          </div>
+        </td>
+      </tr>`;
+
+    return;
+  }
+
+
+  body.innerHTML =
+    items.map(
+      medicine => {
+
+        const status =
+          medicineStatus(
+            medicine
+          );
+
+        return `
+
+          <tr>
+
+            <td>
+              <strong>
+                ${esc(
+                  medicine.tradeName
+                )}
+              </strong>
+
+              <div class="hint">
+                ${esc(
+                  medicine.dosageForm || ""
+                )}
+              </div>
+            </td>
+
+            <td>
+              ${esc(
+                medicine.scientificName || "-"
+              )}
+            </td>
+
+            <td>
+              ${esc(
+                medicine.barcode || "-"
+              )}
+            </td>
+
+            <td>
+              ${esc(
+                medicine.batchNo || "-"
+              )}
+            </td>
+
+            <td>
+              ${formatDate(
+                medicine.expiryDate
+              )}
+            </td>
+
+            <td>
+              <strong>
+                ${num(medicine.quantity)}
+              </strong>
+            </td>
+
+            <td>
+              ${money(
+                medicine.purchasePrice
+              )}
+            </td>
+
+            <td>
+              ${money(
+                medicine.salePrice
+              )}
+            </td>
+
+            <td>
+              <span class="
+                badge
+                ${status.className}
+              ">
+                ${status.text}
+              </span>
+            </td>
+
+            <td>
+
+              <div class="table-actions">
+
+                <button
+                  class="btn btn-small btn-secondary"
+                  data-action="edit-medicine"
+                  data-id="${medicine.id}"
+                >
+                  تعديل
+                </button>
+
+                <button
+                  class="btn btn-small btn-info"
+                  data-action="adjust-stock"
+                  data-id="${medicine.id}"
+                >
+                  الكمية
+                </button>
+
+                ${
+                  isAdmin()
+                    ? `
+                      <button
+                        class="btn btn-small btn-danger"
+                        data-action="delete-medicine"
+                        data-id="${medicine.id}"
+                      >
+                        حذف
+                      </button>
+                    `
+                    : ""
+                }
+
+              </div>
+
+            </td>
+
+          </tr>
+
+        `;
+      }
+    ).join("");
+}
+
+
+/* =========================================================
+   POS
+   ========================================================= */
+
+function renderPOS() {
+
+  renderPOSResults();
+
+  renderCart();
+
+  renderCustomerSelect();
+
+  calculateCart();
+}
+
+
+function renderPOSResults() {
+
+  const el =
+    $("posResults");
+
+  if (!el) {
+    return;
+  }
+
+  const search =
+    String(
+      $("posSearch")?.value || ""
+    )
+      .trim()
+      .toLowerCase();
+
+
+  if (!search) {
+
+    el.innerHTML =
+      `<div class="empty-state">
+        ابدأ بالبحث عن دواء
+      </div>`;
+
+    return;
+  }
+
+
+  const results =
+    state.medicines
+      .filter(
+        medicine => {
+
+          const text =
+            [
+              medicine.tradeName,
+              medicine.scientificName,
+              medicine.barcode,
+              medicine.batchNo
+            ]
+              .join(" ")
+              .toLowerCase();
+
+          return (
+            text.includes(search) &&
+            num(medicine.quantity) > 0
+          );
+
+        }
+      )
+      .slice(0, 50);
+
+
+  if (!results.length) {
+
+    el.innerHTML =
+      `<div class="empty-state">
+        لا توجد أدوية مطابقة
+      </div>`;
+
+    return;
+  }
+
+
+  el.innerHTML =
+    results.map(
+      medicine => `
+
+        <div
+          class="pos-product"
+          data-action="add-cart"
+          data-id="${medicine.id}"
+        >
+
+          <div class="pos-product-name">
+            ${esc(
+              medicine.tradeName
+            )}
+          </div>
+
+          <div class="pos-product-meta">
+            ${esc(
+              medicine.scientificName || ""
+            )}
+          </div>
+
+          <div class="pos-product-price">
+            ${money(
+              medicine.salePrice
+            )}
+          </div>
+
+          <span class="pos-product-stock">
+            المتوفر: ${num(
+              medicine.quantity
+            )}
+          </span>
+
+        </div>
+
+      `
+    ).join("");
+}
+
+
+function addToCart(
+  medicineId
+) {
+
+  if (!requireCashier()) {
+    return;
+  }
+
+  const medicine =
+    state.medicines.find(
+      item =>
+        item.id === medicineId
+    );
+
+
+  if (!medicine) {
+    return;
+  }
+
+
+  const max =
+    num(medicine.quantity);
+
+
+  if (max <= 0) {
+
+    toast(
+      "الدواء غير متوفر",
+      "error"
+    );
+
+    return;
+  }
+
+
+  const existing =
+    state.cart.find(
+      item =>
+        item.medicineId === medicineId
+    );
+
+
+  if (existing) {
+
+    if (
+      existing.qty >=
+      max
+    ) {
+
+      toast(
+        "لا توجد كمية إضافية",
+        "warning"
+      );
+
+      return;
+    }
+
+    existing.qty++;
+
+  } else {
+
+    state.cart.push({
+
+      medicineId,
+
+      name:
+        medicine.tradeName,
+
+      salePrice:
+        num(medicine.salePrice),
+
+      purchasePrice:
+        num(medicine.purchasePrice),
+
+      qty: 1,
+
+      max,
+
+      batchNo:
+        medicine.batchNo || "",
+
+      expiryDate:
+        medicine.expiryDate || ""
+
+    });
+
+  }
+
+
+  renderCart();
+
+  calculateCart();
+}
+
+
+function renderCart() {
+
+  const el =
+    $("cart");
+
+  if (!el) {
+    return;
+  }
+
+
+  const count =
+    state.cart.reduce(
+      (sum, item) =>
+        sum + num(item.qty),
+      0
+    );
+
+
+  if ($("cartCount")) {
+    $("cartCount").textContent =
+      count;
+  }
+
+
+  if (!state.cart.length) {
+
+    el.innerHTML =
+      `<div class="empty-state">
+        لم تتم إضافة أدوية
+      </div>`;
+
+    return;
+  }
+
+
+  el.innerHTML =
+    state.cart.map(
+      (item, index) => `
+
+        <div class="cart-item">
+
+          <div class="cart-item-name">
+            ${esc(item.name)}
+          </div>
+
+          <div class="cart-item-meta">
+            ${money(item.salePrice)}
+            × ${item.qty}
+          </div>
+
+          <div class="cart-item-row">
+
+            <div class="cart-controls">
+
+              <button
+                class="qty-btn"
+                data-action="cart-minus"
+                data-index="${index}"
+              >
+                −
+              </button>
+
+              <span class="qty-value">
+                ${item.qty}
+              </span>
+
+              <button
+                class="qty-btn"
+                data-action="cart-plus"
+                data-index="${index}"
+              >
+                +
+              </button>
+
+            </div>
+
+            <strong class="cart-item-price">
+              ${money(
+                item.salePrice *
+                item.qty
+              )}
+            </strong>
+
+            <button
+              class="cart-remove"
+              data-action="cart-remove"
+              data-index="${index}"
+              title="حذف"
+            >
+              ×
+            </button>
+
+          </div>
+
+        </div>
+
+      `
+    ).join("");
+}
+
+
+function changeCartQty(
+  index,
+  delta
+) {
+
+  const item =
+    state.cart[index];
+
+  if (!item) {
+    return;
+  }
+
+
+  const newQty =
+    num(item.qty) +
+    delta;
+
+
+  if (newQty <= 0) {
+
+    state.cart.splice(
+      index,
+      1
+    );
+
+  } else if (
+    newQty <=
+    num(item.max)
+  ) {
+
+    item.qty =
+      newQty;
+
+  } else {
+
+    toast(
+      "تجاوزت الكمية المتوفرة",
+      "warning"
+    );
+
+  }
+
+
+  renderCart();
+
+  calculateCart();
+}
+
+
+function calculateCart() {
+
+  const subtotal =
+    state.cart.reduce(
+      (sum, item) =>
+        sum +
+        num(item.salePrice) *
+        num(item.qty),
+      0
+    );
+
+
+  const discount =
+    Math.max(
+      0,
+      num(
+        $("discount")?.value
+      )
+    );
+
+
+  const total =
+    Math.max(
+      0,
+      subtotal - discount
+    );
+
+
+  if ($("cartTotal")) {
+    $("cartTotal").textContent =
+      money(subtotal);
+  }
+
+  if ($("cartNet")) {
+    $("cartNet").textContent =
+      money(total);
+  }
+
+  return {
+    subtotal,
+    discount,
+    total
+  };
+}
+
+
+function renderCustomerSelect() {
+
+  const select =
+    $("saleCustomer");
+
+  if (!select) {
+    return;
+  }
+
+
+  const current =
+    select.value;
+
+
+  select.innerHTML =
+    `<option value="">
+      عميل نقدي
+    </option>`;
+
+
+  state.customers
+    .filter(
+      customer =>
+        num(customer.balance) >= 0
+    )
+    .forEach(
+      customer => {
+
+        const option =
+          document.createElement(
+            "option"
+          );
+
+        option.value =
+          customer.id;
+
+        option.textContent =
+          `${customer.name} — رصيد: ${money(
+            customer.balance
+          )}`;
+
+        select.appendChild(
+          option
+        );
+
+      }
+    );
+
+
+  if (
+    current &&
+    state.customers.some(
+      customer =>
+        customer.id === current
+    )
+  ) {
+
+    select.value =
+      current;
+  }
+}
+
+
+/* =========================================================
+   إتمام البيع
+   ========================================================= */
+
+async function completeSale() {
+
+  if (!requireCashier()) {
+    return;
+  }
+
+
+  if (!state.cart.length) {
+
+    toast(
+      "أضف دواء واحدًا على الأقل",
+      "warning"
+    );
+
+    return;
+  }
+
+
+  const {
+    subtotal,
+    discount,
+    total
+  } =
+    calculateCart();
+
+
+  const customerId =
+    $("saleCustomer")?.value ||
+    "";
+
+
+  const paymentMethod =
+    $("paymentMethod")?.value ||
+    "cash";
+
+
+  if (
+    paymentMethod === "credit" &&
+    !customerId
+  ) {
+
+    toast(
+      "يجب اختيار العميل للبيع الآجل",
+      "warning"
+    );
+
+    return;
+  }
+
+
+  loading(
+    true,
+    "جاري حفظ الفاتورة..."
+  );
+
+
+  try {
+
+    const saleRef =
+      doc(
+        collection(
+          db,
+          "sales"
+        )
+      );
+
+
+    const invoiceNo =
+      `INV-${Date.now()}`;
+
+
+    const result =
+      await runTransaction(
+        db,
+        async transaction => {
+
+          let cogs = 0;
+
+          const finalItems = [];
+
+
+          /*
+            إعادة قراءة الأدوية داخل Transaction
+            حتى لا نبيع كمية غير موجودة.
+          */
+
+          for (
+            const cartItem of state.cart
+          ) {
+
+            const medicineRef =
+              doc(
+                db,
+                "medicines",
+                cartItem.medicineId
+              );
+
+
+            const medicineSnap =
+              await transaction.get(
+                medicineRef
+              );
+
+
+            if (!medicineSnap.exists()) {
+
+              throw new Error(
+                `الدواء غير موجود: ${cartItem.name}`
+              );
+
+            }
+
+
+            const medicine =
+              medicineSnap.data();
+
+
+            const available =
+              num(
+                medicine.quantity
+              );
+
+
+            if (
+              available <
+              num(cartItem.qty)
+            ) {
+
+              throw new Error(
+                `الكمية غير كافية للدواء: ${medicine.tradeName}`
+              );
+
+            }
+
+
+            const quantity =
+              available -
+              num(cartItem.qty);
+
+
+            const purchasePrice =
+              num(
+                medicine.purchasePrice
+              );
+
+
+            cogs +=
+              purchasePrice *
+              num(cartItem.qty);
+
+
+            finalItems.push({
+
+              medicineId:
+                cartItem.medicineId,
+
+              name:
+                medicine.tradeName,
+
+              qty:
+                num(cartItem.qty),
+
+              price:
+                num(medicine.salePrice),
+
+              cost:
+                purchasePrice,
+
+              batchNo:
+                medicine.batchNo || "",
+
+              expiryDate:
+                medicine.expiryDate || ""
+
+            });
+
+
+            transaction.update(
+              medicineRef,
+              {
+
+                quantity,
+
+                updatedAt:
+                  serverTimestamp()
+
+              }
+            );
+
+          }
+
+
+          let customerName =
+            "";
+
+
+          if (customerId) {
+
+            const customerRef =
+              doc(
+                db,
+                "customers",
+                customerId
+              );
+
+
+            const customerSnap =
+              await transaction.get(
+                customerRef
+              );
+
+
+            if (!customerSnap.exists()) {
+
+              throw new Error(
+                "العميل غير موجود"
+              );
+
+            }
+
+
+            const customer =
+              customerSnap.data();
+
+
+            customerName =
+              customer.name ||
+              "";
+
+
+            if (
+              paymentMethod ===
+              "credit"
+            ) {
+
+              transaction.update(
+                customerRef,
+                {
+
+                  balance:
+                    num(customer.balance) +
+                    total,
+
+                  updatedAt:
+                    serverTimestamp()
+
+                }
+              );
+
+            }
+
+          }
+
+
+          const profit =
+            total -
+            cogs;
+
+
+          transaction.set(
+            saleRef,
+            {
+
+              invoiceNo,
+
+              customerId:
+                customerId || "",
+
+              customerName,
+
+              items:
+                finalItems,
+
+              subtotal,
+
+              discount,
+
+              total,
+
+              cogs,
+
+              profit,
+
+              paymentMethod,
+
+              saleDate:
+                localToday(),
+
+              createdAt:
+                serverTimestamp(),
+
+              userId:
+                state.user.uid,
+
+              userEmail:
+                state.user.email || ""
+
+            }
+          );
+
+
+          if (
+            paymentMethod ===
+            "cash"
+          ) {
+
+            const treasuryRef =
+              doc(
+                collection(
+                  db,
+                  "treasury"
+                )
+              );
+
+
+            transaction.set(
+              treasuryRef,
+              {
+
+                type: "income",
+
+                category:
+                  "sale",
+
+                description:
+                  `بيع نقدي - ${invoiceNo}`,
+
+                amount:
+                  total,
+
+                referenceId:
+                  saleRef.id,
+
+                createdAt:
+                  serverTimestamp(),
+
+                userId:
+                  state.user.uid
+
+              }
+            );
+
+          }
+
+
+          return {
+
+            invoiceNo,
+
+            total,
+
+            profit,
+
+            items:
+              finalItems
+
+          };
+
+        }
+      );
+
+
+    await audit(
+      "create_sale",
+      "sales",
+      {
+        saleId:
+          saleRef.id,
+
+        invoiceNo:
+          result.invoiceNo,
+
+        total:
+          result.total
+      }
+    );
+
+
+    state.cart = [];
+
+
+    if ($("discount")) {
+      $("discount").value = "0";
+    }
+
+
+    await loadAll();
+
+    renderPOS();
+
+
+    toast(
+      `تمت عملية البيع — ${result.invoiceNo}`,
+      "success"
+    );
+
+
+    printInvoice({
+
+      ...result,
+
+      saleId:
+        saleRef.id,
+
+      customerName:
+        result.customerName ||
+        ""
+
+    });
+
+
+  } catch (error) {
+
+    console.error(error);
+
+    toast(
+      error.message ||
+      "تعذر إتمام البيع",
+      "error"
+    );
+
+  } finally {
+
+    loading(false);
+
+  }
+}
+
+
+/* =========================================================
+   طباعة الفاتورة
+   ========================================================= */
+
+function printInvoice(
+  data
+) {
+
+  /*
+    قد يمنع المتصفح نافذة الطباعة إذا لم تكن
+    مباشرة من تفاعل المستخدم.
+    لذلك تعتبر الطباعة اختيارية.
+  */
+
+  try {
+
+    const win =
+      window.open(
+        "",
+        "_blank",
+        "width=450,height=700"
+      );
+
+
+    if (!win) {
+
+      toast(
+        "تم البيع. السماح بالنوافذ المنبثقة مطلوب للطباعة.",
+        "warning"
+      );
+
+      return;
+    }
+
+
+    const items =
+      data.items || [];
+
+
+    win.document.write(`
+      <!DOCTYPE html>
+      <html lang="ar" dir="rtl">
+
+      <head>
+
+        <meta charset="UTF-8">
+
+        <title>
+          ${esc(data.invoiceNo)}
+        </title>
+
+        <style>
+
+          body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            direction: rtl;
+          }
+
+          h2 {
+            text-align: center;
+            margin-bottom: 4px;
+          }
+
+          .center {
+            text-align: center;
+          }
+
+          table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+          }
+
+          th,
+          td {
+            border-bottom: 1px solid #ddd;
+            padding: 7px;
+            text-align: right;
+          }
+
+          .total {
+            margin-top: 15px;
+            font-size: 18px;
+            font-weight: bold;
+          }
+
+        </style>
+
+      </head>
+
+      <body>
+
+        <h2>
+          ${esc(
+            state.settings.name
+          )}
+        </h2>
+
+        <div class="center">
+          فاتورة بيع
+        </div>
+
+        <div class="center">
+          ${esc(data.invoiceNo)}
+        </div>
+
+        <div class="center">
+          ${formatDateTime(
+            new Date()
+          )}
+        </div>
+
+        <table>
+
+          <thead>
+
+            <tr>
+              <th>الدواء</th>
+              <th>الكمية</th>
+              <th>السعر</th>
+              <th>الإجمالي</th>
+            </tr>
+
+          </thead>
+
+          <tbody>
+
+            ${items.map(
+              item => `
+
+                <tr>
+
+                  <td>
+                    ${esc(item.name)}
+                  </td>
+
+                  <td>
+                    ${num(item.qty)}
+                  </td>
+
+                  <td>
+                    ${money(item.price)}
+                  </td>
+
+                  <td>
+                    ${money(
+                      num(item.price) *
+                      num(item.qty)
+                    )}
+                  </td>
+
+                </tr>
+
+              `
+            ).join("")}
+
+          </tbody>
+
+        </table>
+
+        <div class="total">
+          الإجمالي: ${money(data.total)}
+        </div>
+
+        <div class="center">
+          شكرًا لزيارتكم
+        </div>
+
+        <script>
+          window.onload = function() {
+            window.print();
+          };
+        <\/script>
+
+      </body>
+
+      </html>
+    `);
+
+
+    win.document.close();
+
+  } catch (error) {
+
+    console.warn(
+      "Print error:",
+      error
+    );
+
+  }
+}
+
+
+/* =========================================================
+   نموذج الدواء
+   ========================================================= */
+
+function openMedicineModal(
+  medicine = null
+) {
+
+  if (!requireStore()) {
+    return;
+  }
+
+
+  const editing =
+    Boolean(medicine);
+
+
+  openModal(
+    editing
+      ? "تعديل الدواء"
+      : "إضافة دواء",
+    `
+
+      <form id="medicineForm">
+
+        <div class="form-grid">
+
+          <div class="form-group">
+
+            <label>
+              اسم الدواء
+            </label>
+
+            <input
+              name="tradeName"
+              value="${esc(
+                medicine?.tradeName || ""
+              )}"
+              required
+            >
+
+          </div>
+
+
+          <div class="form-group">
+
+            <label>
+              الاسم العلمي
+            </label>
+
+            <input
+              name="scientificName"
+              value="${esc(
+                medicine?.scientificName || ""
+              )}"
+            >
+
+          </div>
+
+
+          <div class="form-group">
+
+            <label>
+              الشكل الدوائي
+            </label>
+
+            <input
+              name="dosageForm"
+              value="${esc(
+                medicine?.dosageForm || ""
+              )}"
+              placeholder="أقراص / شراب / حقن..."
+            >
+
+          </div>
+
+
+          <div class="form-group">
+
+            <label>
+              الشركة المصنعة
+            </label>
+
+            <input
+              name="manufacturer"
+              value="${esc(
+                medicine?.manufacturer || ""
+              )}"
+            >
+
+          </div>
+
+
+          <div class="form-group">
+
+            <label>
+              الباركود
+            </label>
+
+            <input
+              name="barcode"
+              value="${esc(
+                medicine?.barcode || ""
+              )}"
+            >
+
+          </div>
+
+
+          <div class="form-group">
+
+            <label>
+              رقم الدفعة
+            </label>
+
+            <input
+              name="batchNo"
+              value="${esc(
+                medicine?.batchNo || ""
+              )}"
+            >
+
+          </div>
+
+
+          <div class="form-group">
+
+            <label>
+              تاريخ الانتهاء
+            </label>
+
+            <input
+              type="date"
+              name="expiryDate"
+              value="${esc(
+                dateOnly(
+                  medicine?.expiryDate
+                )
+              )}"
+              required
+            >
+
+          </div>
+
+
+          <div class="form-group">
+
+            <label>
+              الكمية
+            </label>
+
+            <input
+              type="number"
+              name="quantity"
+              min="0"
+              step="1"
+              value="${num(
+                medicine?.quantity
+              )}"
+              required
+            >
+
+          </div>
+
+
+          <div class="form-group">
+
+            <label>
+              سعر الشراء
+            </label>
+
+            <input
+              type="number"
+              name="purchasePrice"
+              min="0"
+              step="0.01"
+              value="${num(
+                medicine?.purchasePrice
+              )}"
+              required
+            >
+
+          </div>
+
+
+          <div class="form-group">
+
+            <label>
+              سعر البيع
+            </label>
+
+            <input
+              type="number"
+              name="salePrice"
+              min="0"
+              step="0.01"
+              value="${num(
+                medicine?.salePrice
+              )}"
+              required
+            >
+
+          </div>
+
+        </div>
+
+
+        <div class="form-actions">
+
+          <button
+            type="button"
+            class="btn btn-light"
+            data-action="close-modal"
+          >
+            إلغاء
+          </button>
+
+          <button
+            type="submit"
+            class="btn btn-primary"
+          >
+            ${editing ? "حفظ التعديل" : "إضافة الدواء"}
+          </button>
+
+        </div>
+
+      </form>
+
+    `,
+    medicine
+      ? "medicine"
+      : "medicine"
+  );
+}
+
+
+async function saveMedicine(
+  form,
+  medicine
+) {
+
+  if (!requireStore()) {
+    return;
+  }
+
+
+  const fd =
+    new FormData(form);
+
+
+  const data = {
+
+    tradeName:
+      String(
+        fd.get("tradeName") || ""
+      ).trim(),
+
+    scientificName:
+      String(
+        fd.get("scientificName") || ""
+      ).trim(),
+
+    dosageForm:
+      String(
+        fd.get("dosageForm") || ""
+      ).trim(),
+
+    manufacturer:
+      String(
+        fd.get("manufacturer") || ""
+      ).trim(),
+
+    barcode:
+      String(
+        fd.get("barcode") || ""
+      ).trim(),
+
+    batchNo:
+      String(
+        fd.get("batchNo") || ""
+      ).trim(),
+
+    expiryDate:
+      String(
+        fd.get("expiryDate") || ""
+      ),
+
+    quantity:
+      Math.max(
+        0,
+        num(fd.get("quantity"))
+      ),
+
+    purchasePrice:
+      Math.max(
+        0,
+        num(fd.get("purchasePrice"))
+      ),
+
+    salePrice:
+      Math.max(
+        0,
+        num(fd.get("salePrice"))
+      ),
+
+    searchName:
+      String(
+        fd.get("tradeName") || ""
+      ).trim().toLowerCase(),
+
+    updatedAt:
+      serverTimestamp()
+
+  };
+
+
+  if (!data.tradeName) {
+
+    toast(
+      "اسم الدواء مطلوب",
+      "warning"
+    );
+
+    return;
+  }
+
+
+  try {
+
+    let id;
+
+
+    if (medicine) {
+
+      await updateDoc(
+        doc(
+          db,
+          "medicines",
+          medicine.id
+        ),
+        data
+      );
+
+      id =
+        medicine.id;
+
+    } else {
+
+      data.createdAt =
+        serverTimestamp();
+
+      const ref =
+        await addDoc(
+          collection(
+            db,
+            "medicines"
+          ),
+          data
+        );
+
+      id =
+        ref.id;
+
+    }
+
+
+    await audit(
+      medicine
+        ? "update_medicine"
+        : "create_medicine",
+      "medicines",
+      {
+        medicineId: id,
+        name: data.tradeName
+      }
+    );
+
+
+    closeModal();
+
+    await loadAll();
+
+    navigate("inventory");
+
+
+    toast(
+      medicine
+        ? "تم تحديث الدواء"
+        : "تم إضافة الدواء",
+      "success"
+    );
+
+  } catch (error) {
+
+    console.error(error);
+
+    toast(
+      "تعذر حفظ الدواء",
+      "error"
+    );
+
+  }
+}
+
+
+/* =========================================================
+   تعديل المخزون
+   ========================================================= */
+
+function openStockAdjustment(
+  medicine
+) {
+
+  if (!requireStore()) {
+    return;
+  }
+
+
+  openModal(
+    "تعديل كمية المخزون",
+    `
+
+      <form id="stockForm">
+
+        <div class="form-group">
+
+          <label>
+            الدواء
+          </label>
+
+          <input
+            value="${esc(
+              medicine.tradeName
+            )}"
+            disabled
+          >
+
+        </div>
+
+
+        <div class="form-group">
+
+          <label>
+            الكمية الحالية
+          </label>
+
+          <input
+            value="${num(
+              medicine.quantity
+            )}"
+            disabled
+          >
+
+        </div>
+
+
+        <div class="form-group">
+
+          <label>
+            نوع العملية
+          </label>
+
+          <select name="type">
+
+            <option value="add">
+              إضافة كمية
+            </option>
+
+            <option value="subtract">
+              خصم كمية
+            </option>
+
+            <option value="set">
+              تعيين كمية جديدة
+            </option>
+
+          </select>
+
+        </div>
+
+
+        <div class="form-group">
+
+          <label>
+            الكمية
+          </label>
+
+          <input
+            type="number"
+            name="quantity"
+            min="0"
+            step="1"
+            required
+          >
+
+        </div>
+
+
+        <div class="form-group">
+
+          <label>
+            السبب
+          </label>
+
+          <textarea
+            name="reason"
+            placeholder="سبب تعديل المخزون..."
+            required
+          ></textarea>
+
+        </div>
+
+
+        <div class="form-actions">
+
+          <button
+            type="button"
+            class="btn btn-light"
+            data-action="close-modal"
+          >
+            إلغاء
+          </button>
+
+          <button
+            type="submit"
+            class="btn btn-primary"
+          >
+            حفظ التعديل
+          </button>
+
+        </div>
+
+      </form>
+
+    `,
+    "stock"
+  );
+
+
+  $("stockForm").dataset.id =
+    medicine.id;
+}
+
+
+async function saveStockAdjustment(
+  form
+) {
+
+  if (!requireStore()) {
+    return;
+  }
+
+
+  const id =
+    form.dataset.id;
+
+
+  const medicine =
+    state.medicines.find(
+      item =>
+        item.id === id
+    );
+
+
+  if (!medicine) {
+    return;
+  }
+
+
+  const fd =
+    new FormData(form);
+
+
+  const type =
+    fd.get("type");
+
+
+  const amount =
+    Math.max(
+      0,
+      num(fd.get("quantity"))
+    );
+
+
+  const reason =
+    String(
+      fd.get("reason") || ""
+    ).trim();
+
+
+  let newQuantity;
+
+
+  if (type === "add") {
+
+    newQuantity =
+      num(medicine.quantity) +
+      amount;
+
+  } else if (
+    type === "subtract"
+  ) {
+
+    newQuantity =
+      Math.max(
+        0,
+        num(medicine.quantity) -
+        amount
+      );
+
+  } else {
+
+    newQuantity =
+      amount;
+
+  }
+
+
+  try {
+
+    await updateDoc(
+      doc(
+        db,
+        "medicines",
+        id
+      ),
+      {
+
+        quantity:
+          newQuantity,
+
+        updatedAt:
+          serverTimestamp()
+
+      }
+    );
+
+
+    await audit(
+      "stock_adjustment",
+      "medicines",
+      {
+
+        medicineId: id,
+
+        oldQuantity:
+          num(medicine.quantity),
+
+        newQuantity,
+
+        type,
+
+        amount,
+
+        reason
+
+      }
+    );
+
+
+    closeModal();
+
+    await loadAll();
+
+    navigate("inventory");
+
+
+    toast(
+      "تم تعديل المخزون",
+      "success"
+    );
+
+  } catch (error) {
+
+    console.error(error);
+
+    toast(
+      "تعذر تعديل المخزون",
+      "error"
+    );
+
+  }
+}
+
+
+/* =========================================================
+   العملاء
+   ========================================================= */
+
+function renderCustomers() {
+
+  const body =
+    $("customersBody");
+
+  if (!body) {
+    return;
+  }
+
+
+  const search =
+    String(
+      $("customerSearch")?.value || ""
+    )
+      .trim()
+      .toLowerCase();
+
+
+  const items =
+    state.customers.filter(
+      customer =>
+        [
+          customer.name,
+          customer.phone,
+          customer.address
+        ]
+          .join(" ")
+          .toLowerCase()
+          .includes(search)
+    );
+
+
+  if (!items.length) {
+
+    body.innerHTML =
+      `<tr>
+        <td colspan="6">
+          <div class="empty-state">
+            لا يوجد عملاء
+          </div>
+        </td>
+      </tr>`;
+
+    return;
+  }
+
+
+  body.innerHTML =
+    items.map(
+      customer => `
+
+        <tr>
+
+          <td>
+            <strong>
+              ${esc(customer.name)}
+            </strong>
+          </td>
+
+          <td>
+            ${esc(customer.phone || "-")}
+          </td>
+
+          <td>
+            ${esc(customer.address || "-")}
+          </td>
+
+          <td>
+
+            <span class="
+              badge
+              ${
+                num(customer.balance) > 0
+                  ? "badge-danger"
+                  : "badge-success"
+              }
+            ">
+              ${money(customer.balance)}
+            </span>
+
+          </td>
+
+          <td>
+            ${formatDateTime(
+              customer.updatedAt ||
+              customer.createdAt
+            )}
+          </td>
+
+          <td>
+
+            <div class="table-actions">
+
+              <button
+                class="btn btn-small btn-success"
+                data-action="customer-payment"
+                data-id="${customer.id}"
+              >
+                تحصيل
+              </button>
+
+              <button
+                class="btn btn-small btn-secondary"
+                data-action="edit-customer"
+                data-id="${customer.id}"
+              >
+                تعديل
+              </button>
+
+              ${
+                isAdmin()
+                  ? `
+                    <button
+                      class="btn btn-small btn-danger"
+                      data-action="delete-customer"
+                      data-id="${customer.id}"
+                    >
+                      حذف
+                    </button>
+                  `
+                  : ""
+              }
+
+            </div>
+
+          </td>
+
+        </tr>
+
+      `
+    ).join("");
+}
+
+
+function openCustomerModal(
+  customer = null
+) {
+
+  if (!requireCashier()) {
+    return;
+  }
+
+
+  const editing =
+    Boolean(customer);
+
+
+  openModal(
+    editing
+      ? "تعديل العميل"
+      : "إضافة عميل",
+    `
+
+      <form id="customerForm">
+
+        <div class="form-grid">
+
+          <div class="form-group">
+
+            <label>
+              اسم العميل
+            </label>
+
+            <input
+              name="name"
+              value="${esc(
+                customer?.name || ""
+              )}"
+              required
+            >
+
+          </div>
+
+
+          <div class="form-group">
+
+            <label>
+              رقم الهاتف
+            </label>
+
+            <input
+              name="phone"
+              value="${esc(
+                customer?.phone || ""
+              )}"
+            >
+
+          </div>
+
+
+          <div class="form-group full">
+
+            <label>
+              العنوان
+            </label>
+
+            <textarea
+              name="address"
+            >${esc(
+              customer?.address || ""
+            )}</textarea>
+
+          </div>
+
+        </div>
+
+
+        <div class="form-actions">
+
+          <button
+            type="button"
+            class="btn btn-light"
+            data-action="close-modal"
+          >
+            إلغاء
+          </button>
+
+          <button
+            type="submit"
+            class="btn btn-primary"
+          >
+            حفظ
+          </button>
+
+        </div>
+
+      </form>
+
+    `
+  );
+
+
+  if (customer) {
+
+    $("customerForm").dataset.id =
+      customer.id;
+
+  }
+}
+
+
+async function saveCustomer(
+  form
+) {
+
+  if (!requireCashier()) {
+    return;
+  }
+
+
+  const fd =
+    new FormData(form);
+
+
+  const data = {
+
+    name:
+      String(
+        fd.get("name") || ""
+      ).trim(),
+
+    phone:
+      String(
+        fd.get("phone") || ""
+      ).trim(),
+
+    address:
+      String(
+        fd.get("address") || ""
+      ).trim(),
+
+    updatedAt:
+      serverTimestamp()
+
+  };
+
+
+  if (!data.name) {
+
+    toast(
+      "اسم العميل مطلوب",
+      "warning"
+    );
+
+    return;
+  }
+
+
+  try {
+
+    const id =
+      form.dataset.id;
+
+
+    if (id) {
+
+      await updateDoc(
+        doc(
+          db,
+          "customers",
+          id
+        ),
+        data
+      );
+
+    } else {
+
+      data.balance = 0;
+
+      data.createdAt =
+        serverTimestamp();
+
+      await addDoc(
+        collection(
+          db,
+          "customers"
+        ),
+        data
+      );
+
+    }
+
+
+    closeModal();
+
+    await loadAll();
+
+    navigate("customers");
+
+
+    toast(
+      id
+        ? "تم تحديث العميل"
+        : "تم إضافة العميل",
+      "success"
+    );
+
+  } catch (error) {
+
+    console.error(error);
+
+    toast(
+      "تعذر حفظ العميل",
+      "error"
+    );
+
+  }
+}
+
+
+/* =========================================================
+   تحصيل العميل
+   ========================================================= */
+
+function openCustomerPayment(
+  customer
+) {
+
+  if (!requireCashier()) {
+    return;
+  }
+
+
+  openModal(
+    "تحصيل دفعة من العميل",
+    `
+
+      <form id="customerPaymentForm">
+
+        <div class="form-group">
+
+          <label>
+            العميل
+          </label>
+
+          <input
+            value="${esc(
+              customer.name
+            )}"
+            disabled
+          >
+
+        </div>
+
+
+        <div class="form-group">
+
+          <label>
+            الرصيد الحالي
+          </label>
+
+          <input
+            value="${money(
+              customer.balance
+            )}"
+            disabled
+          >
+
+        </div>
+
+
+        <div class="form-group">
+
+          <label>
+            مبلغ التحصيل
+          </label>
+
+          <input
+            type="number"
+            name="amount"
+            min="0.01"
+            max="${num(customer.balance)}"
+            step="0.01"
+            required
+          >
+
+        </div>
+
+
+        <div class="form-group">
+
+          <label>
+            البيان
+          </label>
+
+          <input
+            name="description"
+            value="تحصيل من العميل"
+          >
+
+        </div>
+
+
+        <div class="form-actions">
+
+          <button
+            type="button"
+            class="btn btn-light"
+            data-action="close-modal"
+          >
+            إلغاء
+          </button>
+
+          <button
+            type="submit"
+            class="btn btn-success"
+          >
+            تسجيل التحصيل
+          </button>
+
+        </div>
+
+      </form>
+
+    `
+  );
+
+
+  $("customerPaymentForm")
+    .dataset.id =
+    customer.id;
+}
+
+
+async function saveCustomerPayment(
+  form
+) {
+
+  if (!requireCashier()) {
+    return;
+  }
+
+
+  const id =
+    form.dataset.id;
+
+
+  const customer =
+    state.customers.find(
+      item =>
+        item.id === id
+    );
+
+
+  if (!customer) {
+    return;
+  }
+
+
+  const fd =
+    new FormData(form);
+
+
+  const amount =
+    Math.max(
+      0,
+      num(fd.get("amount"))
+    );
+
+
+  if (
+    amount <= 0 ||
+    amount >
+    num(customer.balance)
+  ) {
+
+    toast(
+      "مبلغ التحصيل غير صحيح",
+      "warning"
+    );
+
+    return;
+  }
+
+
+  const description =
+    String(
+      fd.get("description") || ""
+    ).trim();
+
+
+  try {
+
+    await runTransaction(
+      db,
+      async transaction => {
+
+        const customerRef =
+          doc(
+            db,
+            "customers",
+            id
+          );
+
+
+        const customerSnap =
+          await transaction.get(
+            customerRef
+          );
+
+
+        if (!customerSnap.exists()) {
+          throw new Error(
+            "العميل غير موجود"
+          );
+        }
+
+
+        const current =
+          customerSnap.data();
+
+
+        const balance =
+          Math.max(
+            0,
+            num(current.balance) -
+            amount
+          );
+
+
+        transaction.update(
+          customerRef,
+          {
+
+            balance,
+
+            updatedAt:
+              serverTimestamp()
+
+          }
+        );
+
+
+        const paymentRef =
+          doc(
+            collection(
+              db,
+              "customerPayments"
+            )
+          );
+
+
+        transaction.set(
+          paymentRef,
+          {
+
+            customerId: id,
+
+            customerName:
+              current.name || "",
+
+            amount,
+
+            description,
+
+            createdAt:
+              serverTimestamp(),
+
+            userId:
+              state.user.uid
+
+          }
+        );
+
+
+        const treasuryRef =
+          doc(
+            collection(
+              db,
+              "treasury"
+            )
+          );
+
+
+        transaction.set(
+          treasuryRef,
+          {
+
+            type: "income",
+
+            category:
+              "customer_payment",
+
+            description,
+
+            amount,
+
+            referenceId:
+              paymentRef.id,
+
+            createdAt:
+              serverTimestamp(),
+
+            userId:
+              state.user.uid
+
+          }
+        );
+
+      }
+    );
+
+
+    await audit(
+      "customer_payment",
+      "customers",
+      {
+        customerId: id,
+        amount
+      }
+    );
+
+
+    closeModal();
+
+    await loadAll();
+
+    navigate("customers");
+
+
+    toast(
+      "تم تسجيل التحصيل",
+      "success"
+    );
+
+  } catch (error) {
+
+    console.error(error);
+
+    toast(
+      "تعذر تسجيل التحصيل",
+      "error"
+    );
+
+  }
+}
+
+
+/* =========================================================
+   الموردون
+   ========================================================= */
+
+function renderSuppliers() {
+
+  const body =
+    $("suppliersBody");
+
+  if (!body) {
+    return;
+  }
+
+
+  const search =
+    String(
+      $("supplierSearch")?.value || ""
+    )
+      .trim()
+      .toLowerCase();
+
+
+  const items =
+    state.suppliers.filter(
+      supplier =>
+        [
+          supplier.name,
+          supplier.phone,
+          supplier.address
+        ]
+          .join(" ")
+          .toLowerCase()
+          .includes(search)
+    );
+
+
+  if (!items.length) {
+
+    body.innerHTML =
+      `<tr>
+        <td colspan="6">
+          <div class="empty-state">
+            لا يوجد موردون
+          </div>
+        </td>
+      </tr>`;
+
+    return;
+  }
+
+
+  body.innerHTML =
+    items.map(
+      supplier => `
+
+        <tr>
+
+          <td>
+            <strong>
+              ${esc(supplier.name)}
+            </strong>
+          </td>
+
+          <td>
+            ${esc(
+              supplier.phone || "-"
+            )}
+          </td>
+
+          <td>
+            ${esc(
+              supplier.address || "-"
+            )}
+          </td>
+
+          <td>
+
+            <span class="
+              badge
+              ${
+                num(supplier.balance) > 0
+                  ? "badge-danger"
+                  : "badge-success"
+              }
+            ">
+              ${money(supplier.balance)}
+            </span>
+
+          </td>
+
+          <td>
+            ${formatDateTime(
+              supplier.updatedAt ||
+              supplier.createdAt
+            )}
+          </td>
+
+          <td>
+
+            <div class="table-actions">
+
+              <button
+                class="btn btn-small btn-success"
+                data-action="supplier-payment"
+                data-id="${supplier.id}"
+              >
+                دفع
+              </button>
+
+              <button
+                class="btn btn-small btn-secondary"
+                data-action="edit-supplier"
+                data-id="${supplier.id}"
+              >
+                تعديل
+              </button>
+
+              ${
+                isAdmin()
+                  ? `
+                    <button
+                      class="btn btn-small btn-danger"
+                      data-action="delete-supplier"
+                      data-id="${supplier.id}"
+                    >
+                      حذف
+                    </button>
+                  `
+                  : ""
+              }
+
+            </div>
+
+          </td>
+
+        </tr>
+
+      `
+    ).join("");
+}
+
+
+function openSupplierModal(
+  supplier = null
+) {
+
+  if (!requireStore()) {
+    return;
+  }
+
+
+  openModal(
+    supplier
+      ? "تعديل المورد"
+      : "إضافة مورد",
+    `
+
+      <form id="supplierForm">
+
+        <div class="form-grid">
+
+          <div class="form-group">
+
+            <label>
+              اسم المورد
+            </label>
+
+            <input
+              name="name"
+              value="${esc(
+                supplier?.name || ""
+              )}"
+              required
+            >
+
+          </div>
+
+
+          <div class="form-group">
+
+            <label>
+              رقم الهاتف
+            </label>
+
+            <input
+              name="phone"
+              value="${esc(
+                supplier?.phone || ""
+              )}"
+            >
+
+          </div>
+
+
+          <div class="form-group full">
+
+            <label>
+              العنوان
+            </label>
+
+            <textarea
+              name="address"
+            >${esc(
+              supplier?.address || ""
+            )}</textarea>
+
+          </div>
+
+        </div>
+
+
+        <div class="form-actions">
+
+          <button
+            type="button"
+            class="btn btn-light"
+            data-action="close-modal"
+          >
+            إلغاء
+          </button>
+
+          <button
+            type="submit"
+            class="btn btn-primary"
+          >
+            حفظ
+          </button>
+
+        </div>
+
+      </form>
+
+    `
+  );
+
+
+  if (supplier) {
+
+    $("supplierForm").dataset.id =
+      supplier.id;
+
+  }
+}
+
+
+async function saveSupplier(
+  form
+) {
+
+  if (!requireStore()) {
+    return;
+  }
+
+
+  const fd =
+    new FormData(form);
+
+
+  const data = {
+
+    name:
+      String(
+        fd.get("name") || ""
+      ).trim(),
+
+    phone:
+      String(
+        fd.get("phone") || ""
+      ).trim(),
+
+    address:
+      String(
+        fd.get("address") || ""
+      ).trim(),
+
+    updatedAt:
+      serverTimestamp()
+
+  };
+
+
+  if (!data.name) {
+
+    toast(
+      "اسم المورد مطلوب",
+      "warning"
+    );
+
+    return;
+  }
+
+
+  try {
+
+    const id =
+      form.dataset.id;
+
+
+    if (id) {
+
+      await updateDoc(
+        doc(
+          db,
+          "suppliers",
+          id
+        ),
+        data
+      );
+
+    } else {
+
+      data.balance = 0;
+
+      data.createdAt =
+        serverTimestamp();
+
+      await addDoc(
+        collection(
+          db,
+          "suppliers"
+        ),
+        data
+      );
+
+    }
+
+
+    closeModal();
+
+    await loadAll();
+
+    navigate("suppliers");
+
+
+    toast(
+      id
+        ? "تم تحديث المورد"
+        : "تم إضافة المورد",
+      "success"
+    );
+
+  } catch (error) {
+
+    console.error(error);
+
+    toast(
+      "تعذر حفظ المورد",
+      "error"
+    );
+
+  }
+}
+
+
+/* =========================================================
+   دفع المورد
+   ========================================================= */
+
+function openSupplierPayment(
+  supplier
+) {
+
+  if (!requireStore()) {
+    return;
+  }
+
+
+  openModal(
+    "تسجيل دفعة للمورد",
+    `
+
+      <form id="supplierPaymentForm">
+
+        <div class="form-group">
+
+          <label>
+            المورد
+          </label>
+
+          <input
+            value="${esc(
+              supplier.name
+            )}"
+            disabled
+          >
+
+        </div>
+
+
+        <div class="form-group">
+
+          <label>
+            الرصيد الحالي
+          </label>
+
+          <input
+            value="${money(
+              supplier.balance
+            )}"
+            disabled
+          >
+
+        </div>
+
+
+        <div class="form-group">
+
+          <label>
+            مبلغ الدفع
+          </label>
+
+          <input
+            type="number"
+            name="amount"
+            min="0.01"
+            max="${num(supplier.balance)}"
+            step="0.01"
+            required
+          >
+
+        </div>
+
+
+        <div class="form-group">
+
+          <label>
+            البيان
+          </label>
+
+          <input
+            name="description"
+            value="دفع للمورد"
+          >
+
+        </div>
+
+
+        <div class="form-actions">
+
+          <button
+            type="button"
+            class="btn btn-light"
+            data-action="close-modal"
+          >
+            إلغاء
+          </button>
+
+          <button
+            type="submit"
+            class="btn btn-success"
+          >
+            تسجيل الدفع
+          </button>
+
+        </div>
+
+      </form>
+
+    `
+  );
+
+
+  $("supplierPaymentForm")
+    .dataset.id =
+    supplier.id;
+}
+
+
+async function saveSupplierPayment(
+  form
+) {
+
+  if (!requireStore()) {
+    return;
+  }
+
+
+  const id =
+    form.dataset.id;
+
+
+  const supplier =
+    state.suppliers.find(
+      item =>
+        item.id === id
+    );
+
+
+  if (!supplier) {
+    return;
+  }
+
+
+  const fd =
+    new FormData(form);
+
+
+  const amount =
+    Math.max(
+      0,
+      num(fd.get("amount"))
+    );
+
+
+  if (
+    amount <= 0 ||
+    amount >
+    num(supplier.balance)
+  ) {
+
+    toast(
+      "مبلغ الدفع غير صحيح",
+      "warning"
+    );
+
+    return;
+  }
+
+
+  const description =
+    String(
+      fd.get("description") || ""
+    ).trim();
+
+
+  try {
+
+    await runTransaction(
+      db,
+      async transaction => {
+
+        const supplierRef =
+          doc(
+            db,
+            "suppliers",
+            id
+          );
+
+
+        const supplierSnap =
+          await transaction.get(
+            supplierRef
+          );
+
+
+        if (!supplierSnap.exists()) {
+
+          throw new Error(
+            "المورد غير موجود"
+          );
+
+        }
+
+
+        const current =
+          supplierSnap.data();
+
+
+        const balance =
+          Math.max(
+            0,
+            num(current.balance) -
+            amount
+          );
+
+
+        transaction.update(
+          supplierRef,
+          {
+
+            balance,
+
+            updatedAt:
+              serverTimestamp()
+
+          }
+        );
+
+
+        const paymentRef =
+          doc(
+            collection(
+              db,
+              "supplierPayments"
+            )
+          );
+
+
+        transaction.set(
+          paymentRef,
+          {
+
+            supplierId: id,
+
+            supplierName:
+              current.name || "",
+
+            amount,
+
+            description,
+
+            createdAt:
+              serverTimestamp(),
+
+            userId:
+              state.user.uid
+
+          }
+        );
+
+
+        const treasuryRef =
+          doc(
+            collection(
+              db,
+              "treasury"
+            )
+          );
+
+
+        transaction.set(
+          treasuryRef,
+          {
+
+            type: "expense",
+
+            category:
+              "supplier_payment",
+
+            description,
+
+            amount,
+
+            referenceId:
+              paymentRef.id,
+
+            createdAt:
+              serverTimestamp(),
+
+            userId:
+              state.user.uid
+
+          }
+        );
+
+      }
+    );
+
+
+    await audit(
+      "supplier_payment",
+      "suppliers",
+      {
+        supplierId: id,
+        amount
+      }
+    );
+
+
+    closeModal();
+
+    await loadAll();
+
+    navigate("suppliers");
+
+
+    toast(
+      "تم تسجيل الدفع",
+      "success"
+    );
+
+  } catch (error) {
+
+    console.error(error);
+
+    toast(
+      "تعذر تسجيل الدفع",
+      "error"
+    );
+
+  }
+}
+
+
+/* =========================================================
+   المشتريات
+   ========================================================= */
+
+function renderPurchases() {
+
+  const body =
+    $("purchasesBody");
+
+  if (!body) {
+    return;
+  }
+
+
+  if (!state.purchases.length) {
+
+    body.innerHTML =
+      `<tr>
+        <td colspan="7">
+          <div class="empty-state">
+            لا توجد فواتير مشتريات
+          </div>
+        </td>
+      </tr>`;
+
+    return;
+  }
+
+
+  body.innerHTML =
+    state.purchases.map(
+      purchase => `
+
+        <tr>
+
+          <td>
+            <strong>
+              ${esc(
+                purchase.invoiceNo ||
+                purchase.id.slice(-6)
+              )}
+            </strong>
+          </td>
+
+          <td>
+            ${esc(
+              purchase.supplierName ||
+              findSupplierName(
+                purchase.supplierId
+              )
+            )}
+          </td>
+
+          <td>
+            ${formatDateTime(
+              purchase.createdAt
+            )}
+          </td>
+
+          <td>
+            ${money(
+              purchase.total
+            )}
+          </td>
+
+          <td>
+            ${money(
+              purchase.paid
+            )}
+          </td>
+
+          <td>
+            ${money(
+              purchase.balance
+            )}
+          </td>
+
+          <td>
+            ${esc(
+              purchase.userEmail || "-"
+            )}
+          </td>
+
+        </tr>
+
+      `
+    ).join("");
+}
+
+
+function findSupplierName(
+  id
+) {
+
+  return state.suppliers.find(
+    supplier =>
+      supplier.id === id
+  )?.name || "-";
+}
+
+
+function purchaseLineTemplate() {
+
+  return `
+
+    <div class="line-item">
+
+      <div class="form-group">
+
+        <label>
+          الدواء
+        </label>
+
+        <select name="medicineId">
+
+          <option value="">
+            دواء جديد
+          </option>
+
+          ${state.medicines.map(
+            medicine => `
+
+              <option
+                value="${medicine.id}"
+              >
+                ${esc(
+                  medicine.tradeName
+                )}
+              </option>
+
+            `
+          ).join("")}
+
+        </select>
+
+      </div>
+
+
+      <div class="form-group">
+
+        <label>
+          الكمية
+        </label>
+
+        <input
+          type="number"
+          name="quantity"
+          min="1"
+          value="1"
+          required
+        >
+
+      </div>
+
+
+      <div class="form-group">
+
+        <label>
+          سعر الشراء
+        </label>
+
+        <input
+          type="number"
+          name="purchasePrice"
+          min="0"
+          step="0.01"
+          required
+        >
+
+      </div>
+
+
+      <div class="form-group">
+
+        <label>
+          سعر البيع
+        </label>
+
+        <input
+          type="number"
+          name="salePrice"
+          min="0"
+          step="0.01"
+          required
+        >
+
+      </div>
+
+
+      <button
+        type="button"
+        class="btn btn-danger"
+        data-action="remove-purchase-line"
+      >
+        حذف
+      </button>
+
+    </div>
+
+  `;
+}
+
+
+function openPurchaseModal() {
+
+  if (!requireStore()) {
+    return;
+  }
+
+
+  openModal(
+    "فاتورة شراء جديدة",
+    `
+
+      <form id="purchaseForm">
+
+        <div class="form-grid">
+
+          <div class="form-group">
+
+            <label>
+              المورد
+            </label>
+
+            <select
+              name="supplierId"
+              required
+            >
+
+              <option value="">
+                اختر المورد
+              </option>
+
+              ${state.suppliers.map(
+                supplier => `
+
+                  <option
+                    value="${supplier.id}"
+                  >
+                    ${esc(
+                      supplier.name
+                    )}
+                  </option>
+
+                `
+              ).join("")}
+
+            </select>
+
+          </div>
+
+
+          <div class="form-group">
+
+            <label>
+              المدفوع
+            </label>
+
+            <input
+              type="number"
+              name="paid"
+              min="0"
+              step="0.01"
+              value="0"
+            >
+
+          </div>
+
+        </div>
+
+
+        <div
+          style="
+            display:flex;
+            justify-content:space-between;
+            align-items:center;
+            margin:15px 0 10px;
+          "
+        >
+
+          <strong>
+            أصناف الفاتورة
+          </strong>
+
+          <button
+            type="button"
+            class="btn btn-small btn-secondary"
+            data-action="add-purchase-line"
+          >
+            + إضافة صنف
+          </button>
+
+        </div>
+
+
+        <div
+          id="purchaseLines"
+          class="line-items"
+        >
+          ${purchaseLineTemplate()}
+        </div>
+
+
+        <div
+          id="purchaseTotalPreview"
+          class="summary-row"
+          style="margin-top:15px"
+        >
+          <span>
+            إجمالي الفاتورة
+          </span>
+
+          <strong>
+            0
+          </strong>
+        </div>
+
+
+        <div class="form-actions">
+
+          <button
+            type="button"
+            class="btn btn-light"
+            data-action="close-modal"
+          >
+            إلغاء
+          </button>
+
+          <button
+            type="submit"
+            class="btn btn-primary"
+          >
+            حفظ الفاتورة
+          </button>
+
+        </div>
+
+      </form>
+
+    `
+  );
+
+
+  updatePurchasePreview();
+}
+
+
+/* =========================================================
+   حفظ المشتريات
+   ========================================================= */
+
+async function savePurchase(
+  form
+) {
+
+  if (!requireStore()) {
+    return;
+  }
+
+
+  const supplierId =
+    form.querySelector(
+      '[name="supplierId"]'
+    )?.value;
+
+
+  const supplier =
+    state.suppliers.find(
+      item =>
+        item.id === supplierId
+    );
+
+
+  if (!supplier) {
+
+    toast(
+      "اختر المورد",
+      "warning"
+    );
+
+    return;
+  }
+
+
+  const lines =
+    [
+      ...form.querySelectorAll(
+        ".line-item"
+      )
+    ];
+
+
+  const items = [];
+
+
+  for (
+    const line of lines
+  ) {
+
+    const medicineId =
+      line.querySelector(
+        '[name="medicineId"]'
+      )?.value || "";
+
+
+    const quantity =
+      Math.max(
+        0,
+        num(
+          line.querySelector(
+            '[name="quantity"]'
+          )?.value
+        )
+      );
+
+
+    const purchasePrice =
+      Math.max(
+        0,
+        num(
+          line.querySelector(
+            '[name="purchasePrice"]'
+          )?.value
+        )
+      );
+
+
+    const salePrice =
+      Math.max(
+        0,
+        num(
+          line.querySelector(
+            '[name="salePrice"]'
+          )?.value
+        )
+      );
+
+
+    if (
+      quantity <= 0
+    ) {
+      continue;
+    }
+
+
+    const medicine =
+      state.medicines.find(
+        item =>
+          item.id === medicineId
+      );
+
+
+    items.push({
+
+      medicineId,
+
+      medicineName:
+        medicine?.tradeName || "",
+
+      quantity,
+
+      purchasePrice,
+
+      salePrice
+
+    });
+
+  }
+
+
+  if (!items.length) {
+
+    toast(
+      "أضف صنفًا واحدًا على الأقل",
+      "warning"
+    );
+
+    return;
+  }
+
+
+  const total =
+    items.reduce(
+      (sum, item) =>
+        sum +
+        item.quantity *
+        item.purchasePrice,
+      0
+    );
+
+
+  const paid =
+    Math.min(
+      total,
+      Math.max(
+        0,
+        num(
+          form.querySelector(
+            '[name="paid"]'
+          )?.value
+        )
+      )
+    );
+
+
+  const balance =
+    Math.max(
+      0,
+      total - paid
+    );
+
+
+  loading(
+    true,
+    "جاري حفظ فاتورة الشراء..."
+  );
+
+
+  try {
+
+    await runTransaction(
+      db,
+      async transaction => {
+
+        const supplierRef =
+          doc(
+            db,
+            "suppliers",
+            supplierId
+          );
+
+
+        const supplierSnap =
+          await transaction.get(
+            supplierRef
+          );
+
+
+        if (!supplierSnap.exists()) {
+
+          throw new Error(
+            "المورد غير موجود"
+          );
+
+        }
+
+
+        const currentSupplier =
+          supplierSnap.data();
+
+
+        const purchaseRef =
+          doc(
+            collection(
+              db,
+              "purchases"
+            )
+          );
+
+
+        const invoiceNo =
+          `PUR-${Date.now()}`;
+
+
+        for (
+          const item of items
+        ) {
+
+          if (item.medicineId) {
+
+            const medicineRef =
+              doc(
+                db,
+                "medicines",
+                item.medicineId
+              );
+
+
+            const medicineSnap =
+              await transaction.get(
+                medicineRef
+              );
+
+
+            if (!medicineSnap.exists()) {
+              continue;
+            }
+
+
+            const medicine =
+              medicineSnap.data();
+
+
+            transaction.update(
+              medicineRef,
+              {
+
+                quantity:
+                  num(medicine.quantity) +
+                  item.quantity,
+
+                purchasePrice:
+                  item.purchasePrice,
+
+                salePrice:
+                  item.salePrice,
+
+                updatedAt:
+                  serverTimestamp()
+
+              }
+            );
+
+          }
+
+        }
+
+
+        transaction.update(
+          supplierRef,
+          {
+
+            balance:
+              num(currentSupplier.balance) +
+              balance,
+
+            updatedAt:
+              serverTimestamp()
+
+          }
+        );
+
+
+        transaction.set(
+          purchaseRef,
+          {
+
+            invoiceNo,
+
+            supplierId,
+
+            supplierName:
+              currentSupplier.name || "",
+
+            items,
+
+            total,
+
+            paid,
+
+            balance,
+
+            createdAt:
+              serverTimestamp(),
+
+            userId:
+              state.user.uid,
+
+            userEmail:
+              state.user.email || ""
+
+          }
+        );
+
+
+        if (paid > 0) {
+
+          const treasuryRef =
+            doc(
+              collection(
+                db,
+                "treasury"
+              )
+            );
+
+
+          transaction.set(
+            treasuryRef,
+            {
+
+              type: "expense",
+
+              category:
+                "purchase",
+
+              description:
+                `شراء - ${invoiceNo}`,
+
+              amount:
+                paid,
+
+              referenceId:
+                purchaseRef.id,
+
+              createdAt:
+                serverTimestamp(),
+
+              userId:
+                state.user.uid
+
+            }
+          );
+
+        }
+
+      }
+    );
+
+
+    await audit(
+      "create_purchase",
+      "purchases",
+      {
+        supplierId,
+        total,
+        paid,
+        balance
+      }
+    );
+
+
+    closeModal();
+
+    await loadAll();
+
+    navigate("purchases");
+
+
+    toast(
+      "تم حفظ فاتورة الشراء",
+      "success"
+    );
+
+  } catch (error) {
+
+    console.error(error);
+
+    toast(
+      error.message ||
+      "تعذر حفظ فاتورة الشراء",
+      "error"
+    );
+
+  } finally {
+
+    loading(false);
+
+  }
+}
+
+
+function updatePurchasePreview() {
+
+  const form =
+    $("purchaseForm");
+
+  if (!form) {
+    return;
+  }
+
+
+  const lines =
+    [
+      ...form.querySelectorAll(
+        ".line-item"
+      )
+    ];
+
+
+  const total =
+    lines.reduce(
+      (sum, line) => {
+
+        const quantity =
+          num(
+            line.querySelector(
+              '[name="quantity"]'
+            )?.value
+          );
+
+
+        const price =
+          num(
+            line.querySelector(
+              '[name="purchasePrice"]'
+            )?.value
+          );
+
+
+        return (
+          sum +
+          quantity *
+          price
+        );
+
+      },
+      0
+    );
+
+
+  const preview =
+    $("purchaseTotalPreview");
+
+
+  if (preview) {
+
+    preview.querySelector(
+      "strong"
+    ).textContent =
+      money(total);
+
+  }
+}
+
+
+/* =========================================================
+   الخزينة
+   ========================================================= */
+
+function renderTreasury() {
+
+  const body =
+    $("treasuryBody");
+
+  if (!body) {
+    return;
+  }
+
+
+  const income =
+    state.treasury
+
+      .filter(
+        item =>
+          item.type === "income"
+      )
+
+      .reduce(
+        (sum, item) =>
+          sum + num(item.amount),
+        0
+      );
+
+
+  const expense =
+    state.treasury
+
+      .filter(
+        item =>
+          item.type === "expense"
+      )
+
+      .reduce(
+        (sum, item) =>
+          sum + num(item.amount),
+        0
+      );
+
+
+  if ($("incomeTotal")) {
+    $("incomeTotal").textContent =
+      money(income);
+  }
+
+  if ($("expenseTotal")) {
+    $("expenseTotal").textContent =
+      money(expense);
+  }
+
+  if ($("balanceTotal")) {
+    $("balanceTotal").textContent =
+      money(
+        income - expense
+      );
+  }
+
+
+  if (!state.treasury.length) {
+
+    body.innerHTML =
+      `<tr>
+        <td colspan="5">
+          <div class="empty-state">
+            لا توجد حركات مالية
+          </div>
+        </td>
+      </tr>`;
+
+    return;
+  }
+
+
+  body.innerHTML =
+    state.treasury.map(
+      item => `
+
+        <tr>
+
+          <td>
+            ${formatDateTime(
+              item.createdAt
+            )}
+          </td>
+
+          <td>
+
+            <span class="
+              badge
+              ${
+                item.type === "income"
+                  ? "badge-success"
+                  : "badge-danger"
+              }
+            ">
+              ${
+                item.type === "income"
+                  ? "إيراد"
+                  : "مصروف"
+              }
+            </span>
+
+          </td>
+
+          <td>
+            ${esc(
+              item.description || "-"
+            )}
+          </td>
+
+          <td>
+            ${money(item.amount)}
+          </td>
+
+          <td>
+            ${esc(
+              item.userEmail || "-"
+            )}
+          </td>
+
+        </tr>
+
+      `
+    ).join("");
+}
+
+
+function openTreasuryModal() {
+
+  if (!requireAdmin()) {
+    return;
+  }
+
+
+  openModal(
+    "إضافة حركة مالية",
+    `
+
+      <form id="treasuryForm">
+
+        <div class="form-grid">
+
+          <div class="form-group">
+
+            <label>
+              نوع الحركة
+            </label>
+
+            <select name="type">
+
+              <option value="income">
+                إيراد
+              </option>
+
+              <option value="expense">
+                مصروف
+              </option>
+
+            </select>
+
+          </div>
+
+
+          <div class="form-group">
+
+            <label>
+              المبلغ
+            </label>
+
+            <input
+              type="number"
+              name="amount"
+              min="0"
+              step="0.01"
+              required
+            >
+
+          </div>
+
+
+          <div class="form-group full">
+
+            <label>
+              البيان
+            </label>
+
+            <textarea
+              name="description"
+              required
+            ></textarea>
+
+          </div>
+
+        </div>
+
+
+        <div class="form-actions">
+
+          <button
+            type="button"
+            class="btn btn-light"
+            data-action="close-modal"
+          >
+            إلغاء
+          </button>
+
+          <button
+            type="submit"
+            class="btn btn-primary"
+          >
+            حفظ الحركة
+          </button>
+
+        </div>
+
+      </form>
+
+    `
+  );
+}
+
+
+async function saveTreasury(
+  form
+) {
+
+  if (!requireAdmin()) {
+    return;
+  }
+
+
+  const fd =
+    new FormData(form);
+
+
+  const type =
+    fd.get("type");
+
+
+  const amount =
+    Math.max(
+      0,
+      num(fd.get("amount"))
+    );
+
+
+  const description =
+    String(
+      fd.get("description") || ""
+    ).trim();
+
+
+  if (
+    amount <= 0 ||
+    !description
+  ) {
+
+    toast(
+      "أدخل المبلغ والبيان",
+      "warning"
+    );
+
+    return;
+  }
+
+
+  try {
+
+    await addDoc(
+      collection(
+        db,
+        "treasury"
+      ),
+      {
+
+        type,
+
+        category:
+          "manual",
+
+        description,
+
+        amount,
+
+        createdAt:
+          serverTimestamp(),
+
+        userId:
+          state.user.uid,
+
+        userEmail:
+          state.user.email || ""
+
+      }
+    );
+
+
+    await audit(
+      "treasury_entry",
+      "treasury",
+      {
+        type,
+        amount,
+        description
+      }
+    );
+
+
+    closeModal();
+
+    await loadAll();
+
+    navigate("treasury");
+
+
+    toast(
+      "تم حفظ الحركة المالية",
+      "success"
+    );
+
+  } catch (error) {
+
+    console.error(error);
+
+    toast(
+      "تعذر حفظ الحركة",
+      "error"
+    );
+
+  }
+}
+
+
+/* =========================================================
+   التقارير
+   ========================================================= */
+
+function renderReports() {
+
+  const today =
+    localToday();
+
+
+  if (
+    $("reportFrom") &&
+    !$("reportFrom").value
+  ) {
+
+    $("reportFrom").value =
+      today;
+
+  }
+
+
+  if (
+    $("reportTo") &&
+    !$("reportTo").value
+  ) {
+
+    $("reportTo").value =
+      today;
+
+  }
+
+
+  runReport();
+
+  renderBestSelling();
+}
+
+
+function getReportSales() {
+
+  const from =
+    $("reportFrom")?.value || "";
+
+  const to =
+    $("reportTo")?.value || "";
+
+
+  return state.sales.filter(
+    sale => {
+
+      const date =
+        String(
+          sale.saleDate || ""
+        );
+
+
+      if (
+        from &&
+        date < from
+      ) {
+        return false;
+      }
+
+
+      if (
+        to &&
+        date > to
+      ) {
+        return false;
+      }
+
+
+      return true;
+    }
+  );
+}
+
+
+function runReport() {
+
+  const sales =
+    getReportSales();
+
+
+  const salesTotal =
+    sales.reduce(
+      (sum, sale) =>
+        sum +
+        num(sale.total),
+      0
+    );
+
+
+  const cogs =
+    sales.reduce(
+      (sum, sale) =>
+        sum +
+        num(sale.cogs),
+      0
+    );
+
+
+  const gross =
+    sales.reduce(
+      (sum, sale) =>
+        sum +
+        num(sale.profit),
+      0
+    );
+
+
+  const from =
+    $("reportFrom")?.value || "";
+
+  const to =
+    $("reportTo")?.value || "";
+
+
+  const expenses =
+    state.treasury
+
+      .filter(
+        item =>
+          item.type ===
+          "expense"
+      )
+
+      .filter(
+        item => {
+
+          const date =
+            dateOnly(
+              item.createdAt
+            );
+
+          if (
+            from &&
+            date < from
+          ) {
+            return false;
+          }
+
+          if (
+            to &&
+            date > to
+          ) {
+            return false;
+          }
+
+          return true;
+        }
+      )
+
+      .reduce(
+        (sum, item) =>
+          sum +
+          num(item.amount),
+        0
+      );
+
+
+  const net =
+    gross -
+    expenses;
+
+
+  if ($("reportSales")) {
+    $("reportSales").textContent =
+      money(salesTotal);
+  }
+
+  if ($("reportCOGS")) {
+    $("reportCOGS").textContent =
+      money(cogs);
+  }
+
+  if ($("reportGross")) {
+    $("reportGross").textContent =
+      money(gross);
+  }
+
+  if ($("reportExpenses")) {
+    $("reportExpenses").textContent =
+      money(expenses);
+  }
+
+  if ($("reportNet")) {
+    $("reportNet").textContent =
+      money(net);
+  }
+
+
+  renderBestSelling(
+    sales
+  );
+}
+
+
+function renderBestSelling(
+  sales = getReportSales()
+) {
+
+  const el =
+    $("bestSelling");
+
+  if (!el) {
+    return;
+  }
+
+
+  const products = {};
+
+
+  sales.forEach(
+    sale => {
+
+      (sale.items || [])
+        .forEach(
+          item => {
+
+            const key =
+              item.medicineId ||
+              item.name;
+
+
+            if (!products[key]) {
+
+              products[key] = {
+
+                name:
+                  item.name,
+
+                quantity: 0,
+
+                total: 0
+
+              };
+
+            }
+
+
+            products[key].quantity +=
+              num(item.qty);
+
+
+            products[key].total +=
+              num(item.qty) *
+              num(item.price);
+
+          }
+        );
+
+    }
+  );
+
+
+  const list =
+    Object.values(products)
+      .sort(
+        (a, b) =>
+          b.quantity -
+          a.quantity
+      )
+      .slice(0, 15);
+
+
+  if (!list.length) {
+
+    el.innerHTML =
+      `<div class="empty-state">
+        لا توجد بيانات
+      </div>`;
+
+    return;
+  }
+
+
+  el.innerHTML =
+    list.map(
+      (item, index) => `
+
+        <div class="best-selling-item">
+
+          <div>
+
+            <strong>
+              ${index + 1}.
+              ${esc(item.name)}
+            </strong>
+
+            <div class="hint">
+              الكمية المباعة:
+              ${item.quantity}
+            </div>
+
+          </div>
+
+          <strong>
+            ${money(item.total)}
+          </strong>
+
+        </div>
+
+      `
+    ).join("");
+}
+
+
+/* =========================================================
+   CSV
+   ========================================================= */
+
+function exportCSV() {
+
+  const sales =
+    getReportSales();
+
+
+  const rows = [
+
+    [
+      "رقم الفاتورة",
+      "التاريخ",
+      "الإجمالي",
+      "التكلفة",
+      "الربح",
+      "طريقة الدفع"
+    ],
+
+    ...sales.map(
+      sale => [
+
+        sale.invoiceNo || "",
+
+        sale.saleDate || "",
+
+        num(sale.total),
+
+        num(sale.cogs),
+
+        num(sale.profit),
+
+        sale.paymentMethod === "credit"
+          ? "آجل"
+          : "نقدي"
+
+      ]
+    )
+
+  ];
+
+
+  const csv =
+    "\uFEFF" +
+    rows
+      .map(
+        row =>
+          row
+            .map(
+              value =>
+                `"${String(value)
+                  .replaceAll('"', '""')}"`
+            )
+            .join(",")
+      )
+      .join("\n");
+
+
+  const blob =
+    new Blob(
+      [csv],
+      {
+        type:
+          "text/csv;charset=utf-8;"
+      }
+    );
+
+
+  const url =
+    URL.createObjectURL(blob);
+
+
+  const a =
+    document.createElement("a");
+
+
+  a.href =
+    url;
+
+  a.download =
+    `sales-${localToday()}.csv`;
+
+
+  document.body.appendChild(a);
+
+  a.click();
+
+  a.remove();
+
+
+  URL.revokeObjectURL(url);
+}
+
+
+/* =========================================================
+   الإعدادات
+   ========================================================= */
+
+function renderSettings() {
+
+  const s =
+    state.settings;
+
+
+  if ($("settingName")) {
+    $("settingName").value =
+      s.name || "";
+  }
+
+  if ($("settingPhone")) {
+    $("settingPhone").value =
+      s.phone || "";
+  }
+
+  if ($("settingEmail")) {
+    $("settingEmail").value =
+      s.email || "";
+  }
+
+  if ($("settingAddress")) {
+    $("settingAddress").value =
+      s.address || "";
+  }
+
+  if ($("settingCurrency")) {
+    $("settingCurrency").value =
+      s.currency || "ريال";
+  }
+
+  if ($("settingLowStock")) {
+    $("settingLowStock").value =
+      num(s.lowStock);
+  }
+
+  if ($("settingExpiryDays")) {
+    $("settingExpiryDays").value =
+      num(s.expiryDays);
+  }
+}
+
+
+async function saveSettings(
+  form
+) {
+
+  if (!requireAdmin()) {
+    return;
+  }
+
+
+  const fd =
+    new FormData(form);
+
+
+  const settings = {
+
+    name:
+      String(
+        fd.get("name") || ""
+      ).trim() ||
+      "صيدليتي Pro",
+
+    phone:
+      String(
+        fd.get("phone") || ""
+      ).trim(),
+
+    email:
+      String(
+        fd.get("email") || ""
+      ).trim(),
+
+    address:
+      String(
+        fd.get("address") || ""
+      ).trim(),
+
+    currency:
+      String(
+        fd.get("currency") || ""
+      ).trim() ||
+      "ريال",
+
+    lowStock:
+      Math.max(
+        0,
+        num(fd.get("lowStock"))
+      ),
+
+    expiryDays:
+      Math.max(
+        1,
+        num(fd.get("expiryDays"))
+      ),
+
+    updatedAt:
+      serverTimestamp(),
+
+    updatedBy:
+      state.user.uid
+
+  };
+
+
+  try {
+
+    await setDoc(
+      doc(
+        db,
+        "settings",
+        "general"
+      ),
+      settings,
+      {
+        merge: true
+      }
+    );
+
+
+    state.settings = {
+
+      ...state.settings,
+
+      ...settings
+
+    };
+
+
+    if ($("pharmacyName")) {
+
+      $("pharmacyName").textContent =
+        state.settings.name;
+
+    }
+
+
+    await audit(
+      "update_settings",
+      "settings"
+    );
+
+
+    toast(
+      "تم حفظ الإعدادات",
+      "success"
+    );
+
+
+    renderAll();
+
+  } catch (error) {
+
+    console.error(error);
+
+    toast(
+      "تعذر حفظ الإعدادات",
+      "error"
+    );
+
+  }
+}
+
+
+/* =========================================================
+   تغيير كلمة المرور
+   ========================================================= */
+
+async function changePassword(
+  form
+) {
+
+  if (!state.user) {
+    return;
+  }
+
+
+  const fd =
+    new FormData(form);
+
+
+  const currentPassword =
+    String(
+      fd.get("currentPassword") || ""
+    );
+
+
+  const newPassword =
+    String(
+      fd.get("newPassword") || ""
+    );
+
+
+  const confirmPassword =
+    String(
+      fd.get("confirmPassword") || ""
+    );
+
+
+  if (
+    newPassword.length < 6
+  ) {
+
+    toast(
+      "كلمة المرور الجديدة يجب أن تكون 6 أحرف على الأقل",
+      "warning"
+    );
+
+    return;
+  }
+
+
+  if (
+    newPassword !==
+    confirmPassword
+  ) {
+
+    toast(
+      "تأكيد كلمة المرور غير مطابق",
+      "warning"
+    );
+
+    return;
+  }
+
+
+  try {
+
+    loading(
+      true,
+      "جاري تغيير كلمة المرور..."
+    );
+
+
+    const credential =
+      EmailAuthProvider.credential(
+        state.user.email,
+        currentPassword
+      );
+
+
+    await reauthenticateWithCredential(
+      state.user,
+      credential
+    );
+
+
+    await updatePassword(
+      state.user,
+      newPassword
+    );
+
+
+    await audit(
+      "change_password",
+      "security"
+    );
+
+
+    form.reset();
+
+
+    toast(
+      "تم تغيير كلمة المرور بنجاح",
+      "success"
+    );
+
+  } catch (error) {
+
+    console.error(error);
+
+    let message =
+      "تعذر تغيير كلمة المرور";
+
+
+    if (
+      error.code ===
+      "auth/wrong-password"
+    ) {
+
+      message =
+        "كلمة المرور الحالية غير صحيحة";
+
+    }
+
+
+    if (
+      error.code ===
+      "auth/weak-password"
+    ) {
+
+      message =
+        "كلمة المرور الجديدة ضعيفة";
+
+    }
+
+
+    toast(
+      message,
+      "error"
+    );
+
+  } finally {
+
+    loading(false);
+
+  }
+}
+
+
+/* =========================================================
+   المستخدمون
+   ========================================================= */
+
+function renderUsers() {
+
+  const el =
+    $("usersList");
+
+  if (!el) {
+    return;
+  }
+
+
+  if (!isAdmin()) {
+
+    el.innerHTML = "";
+
+    return;
+  }
+
+
+  if (!state.users.length) {
+
+    el.innerHTML =
+      `<div class="empty-state">
+        لا يوجد مستخدمون
+      </div>`;
+
+    return;
+  }
+
+
+  const roleNames = {
+
+    admin: "مدير النظام",
+
+    store: "مسؤول المخزون",
+
+    cashier: "كاشير"
+
+  };
+
+
+  el.innerHTML =
+    state.users.map(
+      user => `
+
+        <div class="user-list-item">
+
+          <div class="user-list-main">
+
+            <div class="user-list-avatar">
+              ${
+                user.role === "admin"
+                  ? "👑"
+                  : user.role === "store"
+                    ? "📦"
+                    : "👤"
+              }
+            </div>
+
+            <div class="user-list-info">
+
+              <strong>
+                ${esc(
+                  user.name ||
+                  user.email ||
+                  "مستخدم"
+                )}
+              </strong>
+
+              <span>
+                ${esc(
+                  user.email || ""
+                )}
+              </span>
+
+            </div>
+
+          </div>
+
+
+          <div>
+
+            <span class="
+              badge
+              ${
+                user.role === "admin"
+                  ? "badge-primary"
+                  : user.role === "store"
+                    ? "badge-info"
+                    : "badge-success"
+              }
+            ">
+              ${
+                roleNames[user.role] ||
+                user.role
+              }
+            </span>
+
+          </div>
+
+        </div>
+
+      `
+    ).join("");
+}
+
+
+/* =========================================================
+   إضافة مستخدم
+   ========================================================= */
+
+function openUserModal() {
+
+  if (!requireAdmin()) {
+    return;
+  }
+
+
+  openModal(
+    "إضافة مستخدم جديد",
+    `
+
+      <form id="userForm">
+
+        <div class="form-grid">
+
+          <div class="form-group">
+
+            <label>
+              اسم المستخدم
+            </label>
+
+            <input
+              name="name"
+              required
+            >
+
+          </div>
+
+
+          <div class="form-group">
+
+            <label>
+              البريد الإلكتروني
+            </label>
+
+            <input
+              type="email"
+              name="email"
+              required
+            >
+
+          </div>
+
+
+          <div class="form-group">
+
+            <label>
+              كلمة المرور
+            </label>
+
+            <input
+              type="password"
+              name="password"
+              minlength="6"
+              required
+            >
+
+          </div>
+
+
+          <div class="form-group">
+
+            <label>
+              الصلاحية
+            </label>
+
+            <select name="role">
+
+              <option value="cashier">
+                كاشير
+              </option>
+
+              <option value="store">
+                مسؤول المخزون
+              </option>
+
+              <option value="admin">
+                مدير
+              </option>
+
+            </select>
+
+          </div>
+
+        </div>
+
+
+        <div class="form-actions">
+
+          <button
+            type="button"
+            class="btn btn-light"
+            data-action="close-modal"
+          >
+            إلغاء
+          </button>
+
+          <button
+            type="submit"
+            class="btn btn-primary"
+          >
+            إنشاء المستخدم
+          </button>
+
+        </div>
+
+      </form>
+
+    `
+  );
+}
+
+
+/* =========================================================
+   إنشاء مستخدم بواسطة Firebase App ثانوي
+   ========================================================= */
+
+async function createUserAccount(
+  form
+) {
+
+  if (!requireAdmin()) {
+    return;
+  }
+
+
+  const fd =
+    new FormData(form);
+
+
+  const name =
+    String(
+      fd.get("name") || ""
+    ).trim();
+
+
+  const email =
+    String(
+      fd.get("email") || ""
+    ).trim()
+    .toLowerCase();
+
+
+  const password =
+    String(
+      fd.get("password") || ""
+    );
+
+
+  const role =
+    String(
+      fd.get("role") || "cashier"
+    );
+
+
+  if (
+    !name ||
+    !email ||
+    password.length < 6
+  ) {
+
+    toast(
+      "أكمل بيانات المستخدم بشكل صحيح",
+      "warning"
+    );
+
+    return;
+  }
+
+
+  let secondaryApp = null;
+
+
+  try {
+
+    loading(
+      true,
+      "جاري إنشاء المستخدم..."
+    );
+
+
+    /*
+      نستخدم تطبيق Firebase ثانوي حتى لا يتم
+      تسجيل خروج المدير الحالي عند إنشاء الحساب.
+    */
+
+    const secondaryName =
+      `secondary-${Date.now()}`;
+
+
+    const {
+      initializeApp:
+        initializeSecondary
+    } =
+      await import(
+        "https://www.gstatic.com/firebasejs/12.19.0/firebase-app.js"
+      );
+
+
+    const {
+      getAuth:
+        getSecondaryAuth,
+      signOut:
+        signOutSecondary
+    } =
+      await import(
+        "https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js"
+      );
+
+
+    secondaryApp =
+      initializeSecondary(
+        firebaseConfig,
+        secondaryName
+      );
+
+
+    const secondaryAuth =
+      getSecondaryAuth(
+        secondaryApp
+      );
+
+
+    const credential =
+      await createUserWithEmailAndPassword(
+        secondaryAuth,
+        email,
+        password
+      );
+
+
+    await setDoc(
+      doc(
+        db,
+        "users",
+        credential.user.uid
+      ),
+      {
+
+        uid:
+          credential.user.uid,
+
+        name,
+
+        email,
+
+        role,
+
+        createdAt:
+          serverTimestamp(),
+
+        updatedAt:
+          serverTimestamp(),
+
+        createdBy:
+          state.user.uid
+
+      }
+    );
+
+
+    await signOutSecondary(
+      secondaryAuth
+    );
+
+
+    await audit(
+      "create_user",
+      "users",
+      {
+        uid:
+          credential.user.uid,
+
+        email,
+
+        role
+      }
+    );
+
+
+    closeModal();
+
+    await loadAll();
+
+    navigate("settings");
+
+
+    toast(
+      "تم إنشاء المستخدم بنجاح",
+      "success"
+    );
+
+  } catch (error) {
+
+    console.error(error);
+
+
+    let message =
+      "تعذر إنشاء المستخدم";
+
+
+    if (
+      error.code ===
+      "auth/email-already-in-use"
+    ) {
+
+      message =
+        "البريد الإلكتروني مستخدم مسبقًا";
+
+    }
+
+
+    if (
+      error.code ===
+      "auth/invalid-email"
+    ) {
+
+      message =
+        "البريد الإلكتروني غير صحيح";
+
+    }
+
+
+    if (
+      error.code ===
+      "auth/weak-password"
+    ) {
+
+      message =
+        "كلمة المرور ضعيفة";
+
+    }
+
+
+    toast(
+      message,
+      "error"
+    );
+
+  } finally {
+
+    loading(false);
+
+  }
+}
+
+
+/* =========================================================
+   النسخ الاحتياطي
+   ========================================================= */
+
+function serializeValue(
+  value
+) {
+
+  if (
+    value &&
+    typeof value.toDate ===
+    "function"
+  ) {
+
+    return value
+      .toDate()
+      .toISOString();
+
+  }
+
+
+  if (
+    value instanceof Date
+  ) {
+
+    return value.toISOString();
+
+  }
+
+
+  if (
+    Array.isArray(value)
+  ) {
+
+    return value.map(
+      serializeValue
+    );
+
+  }
+
+
+  if (
+    value &&
+    typeof value === "object"
+  ) {
+
+    const result = {};
+
+    Object.entries(value)
+      .forEach(
+        ([key, val]) => {
+
+          result[key] =
+            serializeValue(val);
+
+        }
+      );
+
+    return result;
+
+  }
+
+
+  return value;
+}
+
+
+async function backupData() {
+
+  if (!requireAdmin()) {
+    return;
+  }
+
+
+  loading(
+    true,
+    "جاري إنشاء النسخة الاحتياطية..."
+  );
+
+
+  try {
+
+    const collections = [
+
+      "medicines",
+
+      "customers",
+
+      "suppliers",
+
+      "purchases",
+
+      "sales",
+
+      "treasury",
+
+      "settings",
+
+      "users",
+
+      "auditLogs",
+
+      "customerPayments",
+
+      "supplierPayments"
+
+    ];
+
+
+    const backup = {
+
+      app:
+        "صيدليتي Pro",
+
+      version:
+        "2.0",
+
+      exportedAt:
+        new Date().toISOString(),
+
+      collections: {}
+
+    };
+
+
+    for (
+      const name of collections
+    ) {
+
+      try {
+
+        const snap =
+          await getDocs(
+            collection(
+              db,
+              name
+            )
+          );
+
+
+        backup.collections[name] =
+          snap.docs.map(
+            item => ({
+
+              id:
+                item.id,
+
+              data:
+                serializeValue(
+                  item.data()
+                )
+
+            })
+          );
+
+      } catch {
+
+        backup.collections[name] =
+          [];
+
+      }
+
+    }
+
+
+    const blob =
+      new Blob(
+        [
+          JSON.stringify(
+            backup,
+            null,
+            2
+          )
+        ],
+        {
+          type:
+            "application/json"
+        }
+      );
+
+
+    const url =
+      URL.createObjectURL(
+        blob
+      );
+
+
+    const a =
+      document.createElement(
+        "a"
+      );
+
+
+    a.href =
+      url;
+
+    a.download =
+      `pharmacy-backup-${localToday()}.json`;
+
+
+    document.body.appendChild(a);
+
+    a.click();
+
+    a.remove();
+
+
+    URL.revokeObjectURL(url);
+
+
+    await audit(
+      "backup",
+      "system"
+    );
+
+
+    toast(
+      "تم إنشاء النسخة الاحتياطية",
+      "success"
+    );
+
+  } catch (error) {
+
+    console.error(error);
+
+    toast(
+      "تعذر إنشاء النسخة الاحتياطية",
+      "error"
+    );
+
+  } finally {
+
+    loading(false);
+
+  }
+}
+
+
+/* =========================================================
+   استعادة النسخة الاحتياطية
+   ========================================================= */
+
+async function restoreBackup(
+  file
+) {
+
+  if (!requireAdmin()) {
+    return;
+  }
+
+
+  if (!file) {
+    return;
+  }
+
+
+  const confirmed =
+    confirm(
+      "تحذير: استعادة النسخة قد تضيف أو تستبدل بيانات موجودة. هل تريد المتابعة؟"
+    );
+
+
+  if (!confirmed) {
+    return;
+  }
+
+
+  loading(
+    true,
+    "جاري استعادة النسخة الاحتياطية..."
+  );
+
+
+  try {
+
+    const text =
+      await file.text();
+
+
+    const backup =
+      JSON.parse(text);
+
+
+    if (
+      !backup ||
+      !backup.collections
+    ) {
+
+      throw new Error(
+        "ملف النسخة الاحتياطية غير صحيح"
+      );
+
+    }
+
+
+    const allowed = [
+
+      "medicines",
+
+      "customers",
+
+      "suppliers",
+
+      "purchases",
+
+      "sales",
+
+      "treasury",
+
+      "settings",
+
+      "customerPayments",
+
+      "supplierPayments"
+
+    ];
+
+
+    for (
+      const collectionName
+      of allowed
+    ) {
+
+      const records =
+        backup.collections[
+          collectionName
+        ] || [];
+
+
+      for (
+        let i = 0;
+        i < records.length;
+        i += 400
+      ) {
+
+        const batch =
+          writeBatch(db);
+
+
+        const chunk =
+          records.slice(
+            i,
+            i + 400
+          );
+
+
+        chunk.forEach(
+          record => {
+
+            if (
+              !record.id ||
+              !record.data
+            ) {
+              return;
+            }
+
+
+            batch.set(
+              doc(
+                db,
+                collectionName,
+                record.id
+              ),
+              record.data,
+              {
+                merge: true
+              }
+            );
+
+          }
+        );
+
+
+        await batch.commit();
+
+      }
+
+    }
+
+
+    await audit(
+      "restore_backup",
+      "system"
+    );
+
+
+    await loadAll();
+
+
+    toast(
+      "تمت استعادة النسخة الاحتياطية",
+      "success"
+    );
+
+  } catch (error) {
+
+    console.error(error);
+
+    toast(
+      "تعذر استعادة النسخة الاحتياطية",
+      "error"
+    );
+
+  } finally {
+
+    loading(false);
+
+  }
+}
+
+
+/* =========================================================
+   حذف
+   ========================================================= */
+
+async function deleteMedicine(
+  id
+) {
+
+  if (!requireAdmin()) {
+    return;
+  }
+
+
+  const medicine =
+    state.medicines.find(
+      item =>
+        item.id === id
+    );
+
+
+  if (!medicine) {
+    return;
+  }
+
+
+  if (
+    !confirm(
+      `هل تريد حذف الدواء "${medicine.tradeName}"؟`
+    )
+  ) {
+    return;
+  }
+
+
+  try {
+
+    await deleteDoc(
+      doc(
+        db,
+        "medicines",
+        id
+      )
+    );
+
+
+    await audit(
+      "delete_medicine",
+      "medicines",
+      {
+        medicineId: id,
+        name:
+          medicine.tradeName
+      }
+    );
+
+
+    await loadAll();
+
+    navigate("inventory");
+
+
+    toast(
+      "تم حذف الدواء",
+      "success"
+    );
+
+  } catch (error) {
+
+    console.error(error);
+
+    toast(
+      "تعذر حذف الدواء",
+      "error"
+    );
+
+  }
+}
+
+
+async function deleteCustomer(
+  id
+) {
+
+  if (!requireAdmin()) {
+    return;
+  }
+
+
+  if (
+    !confirm(
+      "هل تريد حذف هذا العميل؟"
+    )
+  ) {
+    return;
+  }
+
+
+  try {
+
+    await deleteDoc(
+      doc(
+        db,
+        "customers",
+        id
+      )
+    );
+
+
+    await audit(
+      "delete_customer",
+      "customers",
+      {
+        customerId: id
+      }
+    );
+
+
+    await loadAll();
+
+    navigate("customers");
+
+
+    toast(
+      "تم حذف العميل",
+      "success"
+    );
+
+  } catch (error) {
+
+    console.error(error);
+
+    toast(
+      "تعذر حذف العميل",
+      "error"
+    );
+
+  }
+}
+
+
+async function deleteSupplier(
+  id
+) {
+
+  if (!requireAdmin()) {
+    return;
+  }
+
+
+  if (
+    !confirm(
+      "هل تريد حذف هذا المورد؟"
+    )
+  ) {
+    return;
+  }
+
+
+  try {
+
+    await deleteDoc(
+      doc(
+        db,
+        "suppliers",
+        id
+      )
+    );
+
+
+    await audit(
+      "delete_supplier",
+      "suppliers",
+      {
+        supplierId: id
+      }
+    );
+
+
+    await loadAll();
+
+    navigate("suppliers");
+
+
+    toast(
+      "تم حذف المورد",
+      "success"
+    );
+
+  } catch (error) {
+
+    console.error(error);
+
+    toast(
+      "تعذر حذف المورد",
+      "error"
+    );
+
+  }
+}
+
+
+/* =========================================================
+   Modal
+   ========================================================= */
+
+let modalType = "";
+
+
+function openModal(
+  title,
+  html,
+  type = ""
+) {
+
+  modalType =
+    type;
+
+
+  if ($("modalTitle")) {
+    $("modalTitle").textContent =
+      title;
+  }
+
+
+  if ($("modalBody")) {
+    $("modalBody").innerHTML =
+      html;
+  }
+
+
+  const modal =
+    $("modal");
+
+
+  if (modal) {
+
+    modal.classList.add(
+      "show"
+    );
+
+    modal.setAttribute(
+      "aria-hidden",
+      "false"
+    );
+
+  }
+}
+
+
+function closeModal() {
+
+  const modal =
+    $("modal");
+
+
+  if (!modal) {
+    return;
+  }
+
+
+  modal.classList.remove(
+    "show"
+  );
+
+
+  modal.setAttribute(
+    "aria-hidden",
+    "true"
+  );
+
+
+  if ($("modalBody")) {
+    $("modalBody").innerHTML =
+      "";
+  }
+
+
+  modalType = "";
+}
+
+
+/* =========================================================
+   المستخدمون - تحديث role
+   ========================================================= */
+
+async function updateUserRole(
+  uid,
+  role
+) {
+
+  if (!requireAdmin()) {
+    return;
+  }
+
+
+  if (
+    uid ===
+    state.user.uid &&
+    role !== "admin"
+  ) {
+
+    toast(
+      "لا تغيّر صلاحية المدير الحالي من هنا",
+      "warning"
+    );
+
+    return;
+  }
+
+
+  try {
+
+    await updateDoc(
+      doc(
+        db,
+        "users",
+        uid
+      ),
+      {
+
+        role,
+
+        updatedAt:
+          serverTimestamp(),
+
+        updatedBy:
+          state.user.uid
+
+      }
+    );
+
+
+    await audit(
+      "update_user_role",
+      "users",
+      {
+        uid,
+        role
+      }
+    );
+
+
+    await loadAll();
+
+
+    toast(
+      "تم تحديث الصلاحية",
+      "success"
+    );
+
+  } catch (error) {
+
+    console.error(error);
+
+    toast(
+      "تعذر تحديث الصلاحية",
+      "error"
+    );
+
+  }
+}
+
+
+/* =========================================================
+   Render All
+   ========================================================= */
+
+function renderAll() {
+
+  renderCurrentUser();
+
+  renderDashboard();
+
+  renderPOS();
+
+  renderInventory();
+
+  renderCustomers();
+
+  renderSuppliers();
+
+  renderPurchases();
+
+  renderTreasury();
+
+  renderReports();
+
+  renderSettings();
+
+  renderUsers();
+
+  applyPermissions();
+
+  navigate(
+    state.currentPage
+  );
+}
+
+
+/* =========================================================
+   الأحداث
+   ========================================================= */
+
+function setupEvents() {
+
+  /* تسجيل الدخول */
+
+  $("loginForm")
+    ?.addEventListener(
+      "submit",
+      event => {
+
+        event.preventDefault();
+
+        login(
+
+          $("loginEmail")
+            ?.value
+            .trim(),
+
+          $("loginPassword")
+            ?.value || ""
+
+        );
+
+      }
+    );
+
+
+  /* تسجيل الخروج */
+
+  $("logoutBtn")
+    ?.addEventListener(
+      "click",
+      logout
+    );
+
+
+  /* القائمة */
+
+  $("menuToggle")
+    ?.addEventListener(
+      "click",
+      () => {
+
+        $("sidebar")
+          ?.classList
+          .toggle("open");
+
+      }
+    );
+
+
+  /* التنقل */
+
+  document
+    .querySelectorAll(".nav-item")
+    .forEach(
+      button => {
+
+        button.addEventListener(
+          "click",
+          () => {
+
+            navigate(
+              button.dataset.page
+            );
+
+          }
+        );
+
+      }
+    );
+
+
+  /* تحديث */
+
+  $("refreshData")
+    ?.addEventListener(
+      "click",
+      async () => {
+
+        await loadAll();
+
+        toast(
+          "تم تحديث البيانات",
+          "success"
+        );
+
+      }
+    );
+
+
+  /* إضافة دواء */
+
+  $("addMedicine")
+    ?.addEventListener(
+      "click",
+      () =>
+        openMedicineModal()
+    );
+
+
+  /* بحث المخزون */
+
+  $("inventorySearch")
+    ?.addEventListener(
+      "input",
+      renderInventory
+    );
+
+
+  $("inventoryFilter")
+    ?.addEventListener(
+      "change",
+      renderInventory
+    );
+
+
+  /* POS */
+
+  $("posSearch")
+    ?.addEventListener(
+      "input",
+      renderPOSResults
+    );
+
+
+  $("posSearch")
+    ?.addEventListener(
+      "keydown",
+      event => {
+
+        if (
+          event.key !==
+          "Enter"
+        ) {
+          return;
+        }
+
+
+        const value =
+          event.target.value
+            .trim();
+
+
+        if (!value) {
+          return;
+        }
+
+
+        const exact =
+          state.medicines.find(
+            medicine =>
+              String(
+                medicine.barcode || ""
+              ) === value
+          );
+
+
+        if (exact) {
+
+          addToCart(
+            exact.id
+          );
+
+          event.target.select();
+
+        }
+
+      }
+    );
+
+
+  $("discount")
+    ?.addEventListener(
+      "input",
+      calculateCart
+    );
+
+
+  $("completeSale")
+    ?.addEventListener(
+      "click",
+      completeSale
+    );
+
+
+  /* العملاء */
+
+  $("addCustomer")
+    ?.addEventListener(
+      "click",
+      () =>
+        openCustomerModal()
+    );
+
+
+  $("customerSearch")
+    ?.addEventListener(
+      "input",
+      renderCustomers
+    );
+
+
+  /* الموردون */
+
+  $("addSupplier")
+    ?.addEventListener(
+      "click",
+      () =>
+        openSupplierModal()
+    );
+
+
+  $("supplierSearch")
+    ?.addEventListener(
+      "input",
+      renderSuppliers
+    );
+
+
+  /* المشتريات */
+
+  $("addPurchase")
+    ?.addEventListener(
+      "click",
+      openPurchaseModal
+    );
+
+
+  /* الخزينة */
+
+  $("addTreasury")
+    ?.addEventListener(
+      "click",
+      openTreasuryModal
+    );
+
+
+  /* التقارير */
+
+  $("runReport")
+    ?.addEventListener(
+      "click",
+      runReport
+    );
+
+
+  $("exportCSV")
+    ?.addEventListener(
+      "click",
+      exportCSV
+    );
+
+
+  /* الإعدادات */
+
+  $("settingsForm")
+    ?.addEventListener(
+      "submit",
+      event => {
+
+        event.preventDefault();
+
+        saveSettings(
+          event.target
+        );
+
+      }
+    );
+
+
+  $("passwordForm")
+    ?.addEventListener(
+      "submit",
+      event => {
+
+        event.preventDefault();
+
+        changePassword(
+          event.target
+        );
+
+      }
+    );
+
+
+  /* النسخ الاحتياطي */
+
+  $("backupBtn")
+    ?.addEventListener(
+      "click",
+      backupData
+    );
+
+
+  $("restoreFile")
+    ?.addEventListener(
+      "change",
+      event => {
+
+        const file =
+          event.target.files?.[0];
+
+        if (file) {
+
+          restoreBackup(
+            file
+          );
+
+        }
+
+        event.target.value =
+          "";
+
+      }
+    );
+
+
+  /* إضافة مستخدم */
+
+  $("addUser")
+    ?.addEventListener(
+      "click",
+      openUserModal
+    );
+
+
+  /* إغلاق Modal */
+
+  $("closeModal")
+    ?.addEventListener(
+      "click",
+      closeModal
+    );
+
+
+  $("modalOverlay")
+    ?.addEventListener(
+      "click",
+      closeModal
+    );
+
+
+  document.addEventListener(
+    "keydown",
+    event => {
+
+      if (
+        event.key === "Escape"
+      ) {
+
+        closeModal();
+
+      }
+
+    }
+  );
+
+
+  /* الأحداث الديناميكية */
+
+  document.addEventListener(
+    "click",
+    handleDynamicClick
+  );
+
+
+  document.addEventListener(
+    "input",
+    event => {
+
+      if (
+        event.target.closest(
+          "#purchaseForm"
+        )
+      ) {
+
+        updatePurchasePreview();
+
+      }
+
+    }
+  );
+
+
+  document.addEventListener(
+    "change",
+    event => {
+
+      if (
+        event.target.matches(
+          '[data-action="user-role"]'
+        )
+      ) {
+
+        updateUserRole(
+          event.target.dataset.id,
+          event.target.value
+        );
+
+      }
+
+    }
+  );
+
+}
+
+
+/* =========================================================
+   الأحداث الديناميكية
+   ========================================================= */
+
+function handleDynamicClick(
+  event
+) {
+
+  const target =
+    event.target.closest(
+      "[data-action]"
+    );
+
+
+  if (!target) {
+    return;
+  }
+
+
+  const action =
+    target.dataset.action;
+
+
+  if (
+    action ===
+    "close-modal"
+  ) {
+
+    closeModal();
+
+    return;
+  }
+
+
+  if (
+    action ===
+    "add-cart"
+  ) {
+
+    addToCart(
+      target.dataset.id
+    );
+
+    return;
+  }
+
+
+  if (
+    action ===
+    "cart-plus"
+  ) {
+
+    changeCartQty(
+      num(target.dataset.index),
+      1
+    );
+
+    return;
+  }
+
+
+  if (
+    action ===
+    "cart-minus"
+  ) {
+
+    changeCartQty(
+      num(target.dataset.index),
+      -1
+    );
+
+    return;
+  }
+
+
+  if (
+    action ===
+    "cart-remove"
+  ) {
+
+    const index =
+      num(
+        target.dataset.index
+      );
+
+
+    state.cart.splice(
+      index,
+      1
+    );
+
+
+    renderCart();
+
+    calculateCart();
+
+    return;
+  }
+
+
+  if (
+    action ===
+    "edit-medicine"
+  ) {
+
+    const medicine =
+      state.medicines.find(
+        item =>
+          item.id ===
+          target.dataset.id
+      );
+
+
+    if (medicine) {
+      openMedicineModal(
+        medicine
+      );
+    }
+
+    return;
+  }
+
+
+  if (
+    action ===
+    "delete-medicine"
+  ) {
+
+    deleteMedicine(
+      target.dataset.id
+    );
+
+    return;
+  }
+
+
+  if (
+    action ===
+    "adjust-stock"
+  ) {
+
+    const medicine =
+      state.medicines.find(
+        item =>
+          item.id ===
+          target.dataset.id
+      );
+
+
+    if (medicine) {
+
+      openStockAdjustment(
+        medicine
+      );
+
+    }
+
+    return;
+  }
+
+
+  if (
+    action ===
+    "edit-customer"
+  ) {
+
+    const customer =
+      state.customers.find(
+        item =>
+          item.id ===
+          target.dataset.id
+      );
+
+
+    if (customer) {
+
+      openCustomerModal(
+        customer
+      );
+
+    }
+
+    return;
+  }
+
+
+  if (
+    action ===
+    "delete-customer"
+  ) {
+
+    deleteCustomer(
+      target.dataset.id
+    );
+
+    return;
+  }
+
+
+  if (
+    action ===
+    "customer-payment"
+  ) {
+
+    const customer =
+      state.customers.find(
+        item =>
+          item.id ===
+          target.dataset.id
+      );
+
+
+    if (customer) {
+
+      openCustomerPayment(
+        customer
+      );
+
+    }
+
+    return;
+  }
+
+
+  if (
+    action ===
+    "edit-supplier"
+  ) {
+
+    const supplier =
+      state.suppliers.find(
+        item =>
+          item.id ===
+          target.dataset.id
+      );
+
+
+    if (supplier) {
+
+      openSupplierModal(
+        supplier
+      );
+
+    }
+
+    return;
+  }
+
+
+  if (
+    action ===
+    "delete-supplier"
+  ) {
+
+    deleteSupplier(
+      target.dataset.id
+    );
+
+    return;
+  }
+
+
+  if (
+    action ===
+    "supplier-payment"
+  ) {
+
+    const supplier =
+      state.suppliers.find(
+        item =>
+          item.id ===
+          target.dataset.id
+      );
+
+
+    if (supplier) {
+
+      openSupplierPayment(
+        supplier
+      );
+
+    }
+
+    return;
+  }
+
+
+  if (
+    action ===
+    "add-purchase-line"
+  ) {
+
+    const lines =
+      $("purchaseLines");
+
+    if (!lines) {
+      return;
+    }
+
+
+    lines.insertAdjacentHTML(
+      "beforeend",
+      purchaseLineTemplate()
+    );
+
+
+    updatePurchasePreview();
+
+    return;
+  }
+
+
+  if (
+    action ===
+    "remove-purchase-line"
+  ) {
+
+    const line =
+      target.closest(
+        ".line-item"
+      );
+
+
+    const container =
+      $("purchaseLines");
+
+
+    if (
+      line &&
+      container &&
+      container.children.length > 1
+    ) {
+
+      line.remove();
+
+      updatePurchasePreview();
+
+    }
+
+    return;
+  }
+
+}
+
+
+/* =========================================================
+   Submit ديناميكي للنوافذ
+   ========================================================= */
+
+document.addEventListener(
+  "submit",
+  event => {
+
+    const form =
+      event.target;
+
+
+    if (
+      form.id ===
+      "medicineForm"
+    ) {
+
+      event.preventDefault();
+
+      const id =
+        form.dataset.id;
+
+
+      const medicine =
+        id
+          ? state.medicines.find(
+              item =>
+                item.id === id
+            )
+          : null;
+
+
+      saveMedicine(
+        form,
+        medicine
+      );
+
+      return;
+    }
+
+
+    if (
+      form.id ===
+      "stockForm"
+    ) {
+
+      event.preventDefault();
+
+      saveStockAdjustment(
+        form
+      );
+
+      return;
+    }
+
+
+    if (
+      form.id ===
+      "customerForm"
+    ) {
+
+      event.preventDefault();
+
+      saveCustomer(
+        form
+      );
+
+      return;
+    }
+
+
+    if (
+      form.id ===
+      "customerPaymentForm"
+    ) {
+
+      event.preventDefault();
+
+      saveCustomerPayment(
+        form
+      );
+
+      return;
+    }
+
+
+    if (
+      form.id ===
+      "supplierForm"
+    ) {
+
+      event.preventDefault();
+
+      saveSupplier(
+        form
+      );
+
+      return;
+    }
+
+
+    if (
+      form.id ===
+      "supplierPaymentForm"
+    ) {
+
+      event.preventDefault();
+
+      saveSupplierPayment(
+        form
+      );
+
+      return;
+    }
+
+
+    if (
+      form.id ===
+      "purchaseForm"
+    ) {
+
+      event.preventDefault();
+
+      savePurchase(
+        form
+      );
+
+      return;
+    }
+
+
+    if (
+      form.id ===
+      "treasuryForm"
+    ) {
+
+      event.preventDefault();
+
+      saveTreasury(
+        form
+      );
+
+      return;
+    }
+
+
+    if (
+      form.id ===
+      "userForm"
+    ) {
+
+      event.preventDefault();
+
+      createUserAccount(
+        form
+      );
+
+      return;
+    }
+
+  }
+);
+
+
+/* =========================================================
+   تهيئة التطبيق
+   ========================================================= */
+
+setupEvents();
+
+updateConnectionStatus();
+
+
+onAuthStateChanged(
+  auth,
+  async user => {
+
+    if (user) {
+
+      state.user =
+        user;
+
+
+      $("loginScreen")
+        ?.setAttribute(
+          "hidden",
+          ""
+        );
+
+
+      $("app")
+        ?.removeAttribute(
+          "hidden"
+        );
+
+
+      try {
+
+        await loadUserProfile();
+
+        await loadAll();
+
+        navigate(
+          "dashboard"
+        );
+
+      } catch (error) {
+
+        console.error(error);
+
+        toast(
+          "تعذر تشغيل النظام",
+          "error"
+        );
+
+      }
+
+    } else {
+
+      state.user =
+        null;
+
+      state.profile =
+        null;
+
+      state.role =
+        "none";
+
+
+      $("app")
+        ?.setAttribute(
+          "hidden",
+          ""
+        );
+
+
+      $("loginScreen")
+        ?.removeAttribute(
+          "hidden"
+        );
+
+
+      if ($("loginPassword")) {
+        $("loginPassword").value =
+          "";
+      }
+
+    }
+
+  }
+);
+
+
+/* =========================================================
+   حماية بسيطة من فتح الإعدادات يدويًا
+   ========================================================= */
+
+window.addEventListener(
+  "popstate",
+  () => {
+
+    navigate(
+      state.currentPage
+    );
+
+  }
+);
+
+
+/* =========================================================
+   تجهيز افتراضي
+   ========================================================= */
+
+console.log(
+  "صيدليتي Pro v2.0 loaded"
+);
